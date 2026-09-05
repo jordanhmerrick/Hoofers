@@ -20,7 +20,8 @@
   body{color:var(--ink);
        font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
        -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
-       padding-env:0;}
+       -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  input,.cfg label{-webkit-user-select:auto;user-select:auto;}
   .app{max-width:470px;margin:0 auto;padding:16px 14px calc(28px + env(safe-area-inset-bottom));
        display:flex;flex-direction:column;gap:12px;}
 
@@ -62,7 +63,10 @@
        background:
          repeating-linear-gradient(0deg,transparent 0 15px,rgba(127,160,140,.07) 15px 16px),
          repeating-linear-gradient(90deg,transparent 0 15px,rgba(127,160,140,.07) 15px 16px);
-       touch-action:none;overflow:hidden;user-select:none;}
+       touch-action:none;overflow:hidden;
+       -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
+  .pad *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+         pointer-events:none;}
   .pad-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     text-align:center;font-size:11.5px;color:var(--muted);padding:14px;line-height:1.65;
     pointer-events:none;}
@@ -107,7 +111,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.4</b><br>Bounce + run-out</div>
+    <div class="build">Test rig <b>0.5</b><br>Aim at the pin</div>
   </div>
 
   <div class="holebar">
@@ -130,7 +134,7 @@
     <span>Sensor <b id="sensor">idle</b></span>
   </div>
 
-  <p class="foot"><b>0.4 changes:</b> the ball bounces and runs on after it lands, so the aim ring shows the carry and the rest is your judgement.</p>
+  <p class="foot"><b>0.5 changes:</b> straight back now aims at the pin (the putter was aiming down the hole, not at the cup), no more iOS text-select on the pad, and the clubs lost some sting so par 3 needs three real shots.</p>
 </div>
 
 <script>
@@ -200,13 +204,16 @@
     return 'deep';
   }
 
+  // the club set IS the difficulty knob, and later it is the progression system
   function club(){
     var d = pinDist();
     if (state.lie === 'green') return { name:'Putt', max:11, putt:true };
-    if (d > 26) return { name:'Pitch', max:58, putt:false };
-    if (d > 7)  return { name:'Chip',  max:26, putt:false };
-    return { name:'Flop', max:14, putt:false };
+    if (d > 24) return { name:'Pitch', max:44, putt:false };
+    if (d > 7)  return { name:'Chip',  max:21, putt:false };
+    return { name:'Flop', max:12, putt:false };
   }
+  // aim is measured FROM the line to the hole, not from the axis of the hole
+  function bearing(){ return Math.atan2(-state.l, HOLE.yards - state.a); }
 
   // ---------------- board ----------------
   var plan = document.getElementById('plan');
@@ -321,8 +328,8 @@
       '</div>' +
       '<div class="pad" id="pad"><canvas id="padc"></canvas>' +
       '<div class="pad-hint" id="padHint">' +
-        (c.putt ? 'Pull back to set the pace.<br>Pull off to one side to aim.'
-                : 'Pull back for power.<br>Pull off to the side and it goes the other way.') +
+        (c.putt ? 'Straight back aims at the hole.<br>Pull off to one side to nudge it.'
+                : 'Straight back aims at the pin.<br>Pull off to the side and it goes the other way.') +
       '</div></div>' +
       '<div class="bar' + (c.putt ? ' ok' : '') + '"><i id="powerBar"></i></div>' +
       '<p class="sub" id="powerRead">Pull back to start.</p>' +
@@ -348,9 +355,10 @@
       var dy = Math.max(0, padDrag.cy - padDrag.sy);
       var dx = padDrag.cx - padDrag.sx;
       var p = Math.max(0, Math.min(1, dy / (pad.clientHeight * 0.72)));
-      var ang = Math.max(-MAXANG, Math.min(MAXANG, (-dx / (pad.clientWidth * 0.42)) * MAXANG));
+      var span = c.putt ? MAXANG * 0.45 : MAXANG;   // a putter is a fine instrument
+      var off = Math.max(-span, Math.min(span, (-dx / (pad.clientWidth * 0.42)) * span));
       var base = c.putt ? p * p * c.max : p * c.max;
-      return { p:p, ang:ang, dist: base * LIES[state.lie].mult };
+      return { p:p, off:off, ang: bearing() + off, dist: base * LIES[state.lie].mult };
     }
 
     function paint(v){
@@ -375,8 +383,8 @@
     function update(){
       var v = vals(); if (!v) return;
       bar.style.width = (v.p * 100).toFixed(0) + '%';
-      var side = Math.abs(v.ang) < 0.04 ? 'straight'
-               : (v.ang > 0 ? 'right ' : 'left ') + Math.round(Math.abs(v.ang) * 57) + '&deg;';
+      var side = Math.abs(v.off) < 0.035 ? 'at the ' + (c.putt ? 'hole' : 'pin')
+               : Math.round(Math.abs(v.off) * 57) + '&deg; ' + (v.off > 0 ? 'right' : 'left');
       read.innerHTML = c.putt
         ? 'Pace <b>' + Math.round(v.p * 100) + '%</b> &middot; rolls <b>' + ft(v.dist).toFixed(1) +
           ' ft</b> &middot; ' + side
@@ -386,7 +394,13 @@
       drawPlan(); paint(v);
     }
 
+    // iOS: stop the long-press magnifier, the selection handles and any scroll steal
+    pad.addEventListener('touchstart', function(e){ e.preventDefault(); }, { passive:false });
+    pad.addEventListener('touchmove',  function(e){ e.preventDefault(); }, { passive:false });
+    pad.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+
     pad.addEventListener('pointerdown', function(e){
+      e.preventDefault();
       var r = pad.getBoundingClientRect();
       padDrag = { sx:e.clientX - r.left, sy:e.clientY - r.top,
                   cx:e.clientX - r.left, cy:e.clientY - r.top };
