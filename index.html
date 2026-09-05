@@ -135,7 +135,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.11</b><br><span id="roundName">Teaching round</span></div>
+    <div class="build">Test rig <b>0.12</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -159,7 +159,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.11 changes:</b> a putt has to actually go in. The ball counted as holed anywhere inside twenty inches of the cup, which is why short putts were dropping; the cup is now 3.2 inches, near its real size. Leave one short and you are putting again.</p>
+  <p class="foot"><b>0.12 changes:</b> the holes are shaped like golf holes. They were built from stacked sine waves, which is why they looked wavy - now each one is a straight run to a corner and a straight run out of it, a dogleg, with the corner rounded off. Only long par 5s get a second corner.</p>
 </div>
 
 <script>
@@ -242,8 +242,18 @@
       // This is what stops the generator building holes you cannot reach.
       lenMin: 0.62, lenMax: 0.95, lenJitter: 0.12,
       reach: { 3:['iron'], 4:['driver','iron'], 5:['driver','iron','iron'] },
-      bendsMin: 1, bendsMax: 3,        // sine harmonics in the centreline
-      bendMin: 0.09, bendMax: 0.16,    // total bend as a fraction of hole length
+      // A real hole is a straight run, a CORNER, then another straight run.
+      // These place the corner and say how hard it turns.
+      bendMin: 0.085, bendMax: 0.150,  // corner offset as a fraction of length
+      cornerFrom: 0.44, cornerTo: 0.66,// where along the hole the corner sits
+      corner2From: 0.72, corner2To: 0.86,
+      secondBendPar: 5,                // only par 5s can get a second corner
+      secondBendAt: 0.70,              // ...and only at this difficulty or above
+      secondBendScale: 0.50,           // the second corner is this much of the first
+      lineSamples: 180,                // centreline resolution
+      smoothPasses: 3,                 // how round the corner is
+      smoothWindow: 0.055,             // corner rounding width, fraction of length
+      endTaper: 0.09,                  // tee and pin ease back onto the axis
       widthFrac: 0.075,                // fairway half width vs hole length
       widthMin: 6, widthMax: 22,
       widthNarrow: 0.35,               // pinch toward the green
@@ -351,24 +361,29 @@
     var frac = G.lenMin + (G.lenMax - G.lenMin) * diff;
     var yards = Math.round(reach * frac * (1 - G.lenJitter / 2 + rand() * G.lenJitter));
 
-    // centreline = a sum of sine harmonics, so it is zero at the tee AND at
-    // the pin (both sit on the axis) but bends however hard we ask in between.
-    // No hole in Hoofers is a straight line — his rule.
-    var nb = Math.round(G.bendsMin + (G.bendsMax - G.bendsMin) * diff);
-    var amp = yards * (G.bendMin + (G.bendMax - G.bendMin) * diff);
-    var raw = [], sum = 0, i;
-    for (i = 1; i <= nb; i++){ var w = (0.5 + rand() * 0.5) / i; raw.push(w); sum += w; }
-    var bends = [];
-    for (i = 0; i < nb; i++){
-      bends.push({ k:i + 1, a: amp * (raw[i] / sum) * (rand() < 0.5 ? -1 : 1) });
+    // THE SHAPE. His note on 0.10: "the holes look too wavy... how do we get
+    // them shaped more like an actual golf hole?" The old model was a sum of
+    // sine harmonics, which is a snake, not a golf hole. A real hole is a
+    // straight run to a CORNER and a straight run out of it - a dogleg. So the
+    // centreline is now built from waypoints and the corner is rounded off.
+    // No hole is straight, though - that is still his rule.
+    var offs = yards * (G.bendMin + (G.bendMax - G.bendMin) * diff);
+    var sign = rand() < 0.5 ? -1 : 1;
+    var way = [{ t:0, l:0 },
+               { t: G.cornerFrom + rand() * (G.cornerTo - G.cornerFrom), l: sign * offs }];
+    if (par >= G.secondBendPar && diff >= G.secondBendAt){
+      way.push({ t: G.corner2From + rand() * (G.corner2To - G.corner2From),
+                 l: -sign * offs * G.secondBendScale });
     }
+    way.push({ t:1, l:0 });
+    var line = buildLine(way, G);
 
     var halfW = clamp(yards * G.widthFrac, G.widthMin, G.widthMax) * (1 - G.widthHard * diff);
     var green = clamp(yards * G.greenFrac, G.greenMin, TUNE.bag.putter.max * G.greenCap);
 
     var hole = {
       n: n, par: par, diff: diff, yards: yards, halfW: halfW, green: green,
-      bends: bends, bunkers: [],
+      line: line, corners: way.length - 2, bunkers: [],
       bag: spec.bag || ['driver','iron','wedge','putter'],
       unlock: spec.unlock || null, teach: spec.teach || null
     };
@@ -388,17 +403,51 @@
     }
 
     // how much lateral room the board needs to show all of it
-    hole.span = amp + halfW + G.roughBand + 2;
+    var widest = 0;
+    for (var q = 0; q < line.length; q++) widest = Math.max(widest, Math.abs(line[q]));
+    hole.span = widest + halfW + G.roughBand + 2;
     hole.viewLen = yards * (1 + G.viewPad);
     return hole;
   }
 
-  function centreOf(h, a){
-    var t = clamp(a / h.yards, 0, 1), v = 0;
-    for (var i = 0; i < h.bends.length; i++){
-      v += h.bends[i].a * Math.sin(Math.PI * h.bends[i].k * t);
+  // Sample the waypoints into a table, then round the corners with a few blur
+  // passes. A blur cannot overshoot, which a spline through the same points
+  // would - and overshoot is exactly what made the old holes look wavy.
+  function buildLine(way, G){
+    var N = G.lineSamples, raw = new Array(N + 1), i, k, d;
+    for (i = 0; i <= N; i++){
+      var t = i / N; k = 0;
+      while (k < way.length - 2 && t > way[k + 1].t) k++;
+      var A = way[k], B = way[k + 1];
+      var u = B.t === A.t ? 0 : (t - A.t) / (B.t - A.t);
+      raw[i] = A.l + (B.l - A.l) * clamp(u, 0, 1);
     }
-    return v;
+    var w = Math.max(1, Math.round(G.smoothWindow * N));
+    for (var pass = 0; pass < G.smoothPasses; pass++){
+      var out = raw.slice();
+      for (i = 0; i <= N; i++){
+        var sum = 0, cnt = 0;
+        for (d = -w; d <= w; d++){
+          var q = i + d; if (q < 0 || q > N) continue;
+          sum += raw[q]; cnt++;
+        }
+        out[i] = sum / cnt;
+      }
+      raw = out;
+    }
+    // ease the ends back onto the axis so the tee and the pin sit on it
+    for (i = 0; i <= N; i++){
+      var e = clamp(Math.min(i / N, 1 - i / N) / G.endTaper, 0, 1);
+      raw[i] *= e * e * (3 - 2 * e);
+    }
+    return raw;
+  }
+
+  function centreOf(h, a){
+    var L = h.line, N = L.length - 1;
+    var x = clamp(a / h.yards, 0, 1) * N, i = Math.floor(x);
+    if (i >= N) return L[N];
+    return L[i] + (L[i + 1] - L[i]) * (x - i);
   }
   function halfWidthOf(h, a){
     var t = clamp(a / h.yards, 0, 1);
