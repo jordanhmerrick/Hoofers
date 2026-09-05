@@ -135,7 +135,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.10</b><br><span id="roundName">Teaching round</span></div>
+    <div class="build">Test rig <b>0.11</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -159,7 +159,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.10 changes:</b> the flick is now measured along its whole path over several touch events instead of one jump, which is what was making drives read wrong, and the driver gets a wider pure band than the wedge. Holing out says IT'S IN in green instead of quoting you a distance, and a tap-in you are already standing over pays you straight away instead of asking for a three inch walk.</p>
+  <p class="foot"><b>0.11 changes:</b> a putt has to actually go in. The ball counted as holed anywhere inside twenty inches of the cup, which is why short putts were dropping; the cup is now 3.2 inches, near its real size. Leave one short and you are putting again.</p>
 </div>
 
 <script>
@@ -268,7 +268,14 @@
       viewMin: 7,               // never frame tighter than this many yards
       viewPad: 2.5,             // yards of margin round the ball and the cup
       rings: [3, 6, 12, 24, 48],// rings drawn round the cup, in FEET
-      cupYd: 0.118              // a real cup is 4.25 inches across
+      cupYd: 0.118,             // a real cup is 4.25 inches across
+      // HOW CLOSE COUNTS AS IN. This was 0.55 yd - twenty inches - so a putt
+      // left a foot short was scored as holed. His note: "looks like i left a
+      // putt short and it counted it. several times. dont wnat that."
+      // 0.09 yd is 3.2 inches. A real cup radius is 0.059 yd; this is a little
+      // kinder than that because the rig treats the ball as a point.
+      // NOTE: this governs chip-ins and hole-outs from the fairway too.
+      holeRadius: 0.09
     },
 
     // ---- WALKING -----------------------------------------------------------
@@ -903,7 +910,7 @@
       state.needFt = (total * 3) / COURSE.ratio * state.liePen;
       state.walkedFt = 0; state.steps = 0;
 
-      var holed = pinDist() <= 0.55;
+      var holed = pinDist() <= TUNE.putt.holeRadius;
       if (holed){
         // you still have to go and get it — that is when you get paid. But a
         // tap-in from two feet asked him to walk three inches, which read as
