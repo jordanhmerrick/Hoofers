@@ -78,6 +78,21 @@
          background:linear-gradient(90deg,var(--gold),var(--hoof));}
   .bar.ok i{background:linear-gradient(90deg,#8FE7B0,var(--ok));}
 
+  /* tempo: the needle sweeps while you hold, and you strike by letting go */
+  .tempo{position:relative;height:26px;border-radius:8px;border:1px solid var(--line-hi);
+         background:var(--grid);overflow:hidden;}
+  .tempo .zone{position:absolute;top:0;bottom:0;left:50%;width:13%;transform:translateX(-50%);
+               background:rgba(95,214,138,.22);border-left:1px solid rgba(95,214,138,.5);
+               border-right:1px solid rgba(95,214,138,.5);}
+  .tempo .mid{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--ok);opacity:.8;}
+  .tempo .needle{position:absolute;top:3px;bottom:3px;width:4px;border-radius:2px;
+                 background:var(--gold);left:50%;margin-left:-2px;
+                 box-shadow:0 0 10px rgba(255,201,60,.75);}
+  .tempo.idle .needle{opacity:.35;}
+  .tempolab{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.12em;
+            text-transform:uppercase;color:var(--muted);margin-top:-4px;}
+  .tempolab b{color:var(--ok);font-weight:600;}
+
   .rowbtn{display:flex;gap:8px;flex-wrap:wrap;}
   button{font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;cursor:pointer;
     border-radius:9px;padding:12px 14px;color:var(--ink);background:var(--grid);
@@ -111,7 +126,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.5</b><br>Aim at the pin</div>
+    <div class="build">Test rig <b>0.6</b><br>Pull back, flick through</div>
   </div>
 
   <div class="holebar">
@@ -134,7 +149,7 @@
     <span>Sensor <b id="sensor">idle</b></span>
   </div>
 
-  <p class="foot"><b>0.5 changes:</b> straight back now aims at the pin (the putter was aiming down the hole, not at the cup), no more iOS text-select on the pad, and the clubs lost some sting so par 3 needs three real shots.</p>
+  <p class="foot"><b>0.6 changes:</b> the swing is a pull back AND a flick forward. How fast you come through decides whether you pure it, leave it out there or come out of it early - and holding the pull no longer works at all.</p>
 </div>
 
 <script>
@@ -328,11 +343,14 @@
       '</div>' +
       '<div class="pad" id="pad"><canvas id="padc"></canvas>' +
       '<div class="pad-hint" id="padHint">' +
-        (c.putt ? 'Straight back aims at the hole.<br>Pull off to one side to nudge it.'
-                : 'Straight back aims at the pin.<br>Pull off to the side and it goes the other way.') +
+        (c.putt ? 'Pull straight back for pace.<br>Then <b>flick forward</b> through the ball.'
+                : 'Pull back for power, off to a side to aim.<br>Then <b>flick forward</b> through the ball.') +
       '</div></div>' +
       '<div class="bar' + (c.putt ? ' ok' : '') + '"><i id="powerBar"></i></div>' +
-      '<p class="sub" id="powerRead">Pull back to start.</p>' +
+      '<div class="tempo idle" id="tempo"><div class="zone"></div><div class="mid"></div>' +
+        '<i class="needle" id="needle"></i></div>' +
+      '<div class="tempolab"><span>Too quick</span><span><b>Pure</b></span><span>Too lazy</span></div>' +
+      '<p class="sub" id="powerRead">Press, pull back, then flick forward to strike.</p>' +
       (c.putt ? '' : '<p class="note">The ring is where it <b>lands</b>, not where it stops. It bounces and runs on from there — a long way off the fairway, hardly at all out of the rough, and not one inch out of a bunker.</p>');
   }
 
@@ -342,6 +360,8 @@
     var hint = document.getElementById('padHint');
     var bar = document.getElementById('powerBar');
     var read = document.getElementById('powerRead');
+    var tempo = document.getElementById('tempo');
+    var needle = document.getElementById('needle');
     var ctx = pc.getContext('2d');
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     function size(){
@@ -350,16 +370,20 @@
     }
     size();
 
+    // power and aim come from the BACKSWING; the strike comes from the flick
     function vals(){
       if (!padDrag) return null;
-      var dy = Math.max(0, padDrag.cy - padDrag.sy);
-      var dx = padDrag.cx - padDrag.sx;
+      var dy = padDrag.locked ? padDrag.backDy : Math.max(0, padDrag.cy - padDrag.sy);
+      var dx = padDrag.locked ? padDrag.backDx : (padDrag.cx - padDrag.sx);
       var p = Math.max(0, Math.min(1, dy / (pad.clientHeight * 0.72)));
       var span = c.putt ? MAXANG * 0.45 : MAXANG;   // a putter is a fine instrument
       var off = Math.max(-span, Math.min(span, (-dx / (pad.clientWidth * 0.42)) * span));
       var base = c.putt ? p * p * c.max : p * c.max;
       return { p:p, off:off, ang: bearing() + off, dist: base * LIES[state.lie].mult };
     }
+
+    // how fast the flick has to be, given how far you loaded it up
+    function idealFlick(p){ return (c.putt ? 620 : 900) * (0.45 + p); }   // px per second
 
     function paint(v){
       ctx.clearRect(0, 0, pc.width, pc.height);
@@ -385,11 +409,12 @@
       bar.style.width = (v.p * 100).toFixed(0) + '%';
       var side = Math.abs(v.off) < 0.035 ? 'at the ' + (c.putt ? 'hole' : 'pin')
                : Math.round(Math.abs(v.off) * 57) + '&deg; ' + (v.off > 0 ? 'right' : 'left');
-      read.innerHTML = c.putt
+      var tail = padDrag && padDrag.locked ? ' &middot; <b>flick!</b>' : '';
+      read.innerHTML = (c.putt
         ? 'Pace <b>' + Math.round(v.p * 100) + '%</b> &middot; rolls <b>' + ft(v.dist).toFixed(1) +
           ' ft</b> &middot; ' + side
         : 'Power <b>' + Math.round(v.p * 100) + '%</b> &middot; carries <b>' + v.dist.toFixed(0) +
-          ' yd</b> &middot; ' + side;
+          ' yd</b> &middot; ' + side) + tail;
       aim = { ang:v.ang, dist:v.dist };
       drawPlan(); paint(v);
     }
@@ -402,30 +427,93 @@
     pad.addEventListener('pointerdown', function(e){
       e.preventDefault();
       var r = pad.getBoundingClientRect();
-      padDrag = { sx:e.clientX - r.left, sy:e.clientY - r.top,
-                  cx:e.clientX - r.left, cy:e.clientY - r.top };
+      var x = e.clientX - r.left, y = e.clientY - r.top;
+      padDrag = { sx:x, sy:y, cx:x, cy:y, backDy:0, backDx:0, deepY:y, deepX:x,
+                  locked:false, t0:0, fired:false };
       hint.style.display = 'none';
+      tempo.className = 'tempo idle'; needle.style.left = '50%';
       try { pad.setPointerCapture(e.pointerId); } catch(err){}
       update();
     });
+
     pad.addEventListener('pointermove', function(e){
-      if (!padDrag) return;
+      if (!padDrag || padDrag.fired) return;
       var r = pad.getBoundingClientRect();
       padDrag.cx = e.clientX - r.left; padDrag.cy = e.clientY - r.top;
+      var dy = padDrag.cy - padDrag.sy;
+
+      if (!padDrag.locked){
+        if (dy >= padDrag.backDy){                    // still loading the backswing
+          padDrag.backDy = dy; padDrag.backDx = padDrag.cx - padDrag.sx;
+          padDrag.deepY = padDrag.cy; padDrag.deepX = padDrag.cx;
+        } else if (padDrag.backDy > 14 && dy < padDrag.backDy - 10){
+          padDrag.locked = true;                      // the flick has started
+          padDrag.t0 = performance.now();
+        }
+      }
       update();
+
+      // strike when the hand comes through past the ball
+      if (padDrag.locked && dy <= padDrag.backDy * 0.18) fire(e);
     });
-    function release(){
-      if (!padDrag) return;
+
+    function fire(e){
+      if (!padDrag || padDrag.fired) return;
       var v = vals();
-      padDrag = null; paint(null);
-      if (!v || v.p < 0.06){
+      padDrag.fired = true;
+
+      var dt = Math.max(0.016, (performance.now() - padDrag.t0) / 1000);
+      var fdx = padDrag.cx - padDrag.deepX, fdy = padDrag.cy - padDrag.deepY;
+      var speed = Math.hypot(fdx, fdy) / dt;
+      var want = idealFlick(v.p);
+      var ratio = speed / want;
+
+      // a flick that wanders off the backswing line opens or closes the face
+      var faceErr = Math.atan2(fdx, -fdy) - Math.atan2(-padDrag.backDx, padDrag.backDy);
+      while (faceErr > Math.PI) faceErr -= Math.PI * 2;
+      while (faceErr < -Math.PI) faceErr += Math.PI * 2;
+
+      var dist = v.dist, ang = v.ang, quality, miss;
+      if (ratio < 0.7){                       // left it out there
+        miss = Math.min(1, (0.7 - ratio) / 0.7);
+        dist *= 1 - 0.42 * miss;
+        ang += (c.putt ? 0.05 : 0.16) * miss;
+        quality = miss > 0.55 ? 'Chunked it' : 'Left it out there';
+      } else if (ratio > 1.5){                // came out of it early
+        miss = -Math.min(1, (ratio - 1.5) / 1.4);
+        dist *= 1 - 0.12 * Math.abs(miss);
+        ang -= (c.putt ? 0.05 : 0.19) * Math.abs(miss);
+        quality = Math.abs(miss) > 0.55 ? 'Came out of it' : 'Bit quick';
+      } else {
+        miss = (ratio - 1.1) / 0.4 * -0.25;
+        quality = 'Pured it';
+      }
+      ang += faceErr * (c.putt ? 0.18 : 0.45);
+      if (Math.abs(faceErr) > 0.32 && quality === 'Pured it') quality = faceErr > 0 ? 'Pushed it' : 'Pulled it';
+
+      state.lastQuality = quality;
+      needle.style.left = (50 + Math.max(-48, Math.min(48, miss * 48))) + '%';
+      tempo.className = 'tempo';
+
+      padDrag = null; paint(null); aim = null;
+      hit(dist, ang, c.putt);
+      if (e && e.pointerId !== undefined){ try { pad.releasePointerCapture(e.pointerId); } catch(err){} }
+    }
+
+    function release(e){
+      if (!padDrag) return;
+      if (padDrag.locked){ fire(e); return; }
+      // let go without flicking: that is a duff, not a shot
+      var v = vals();
+      var p = v ? v.p : 0;
+      padDrag = null; paint(null); aim = null; drawPlan();
+      if (p < 0.06){
         hint.style.display = ''; bar.style.width = '0';
-        aim = null; drawPlan();
-        read.textContent = 'Pull back to start.';
+        read.textContent = 'Press, pull back, then flick forward to strike.';
         return;
       }
-      aim = null;
-      hit(v.dist, v.ang, c.putt);
+      state.lastQuality = 'Never let go of it';
+      hit(v.dist * 0.28, v.ang + 0.22, c.putt);
     }
     pad.addEventListener('pointerup', release);
     pad.addEventListener('pointercancel', release);
@@ -603,8 +691,9 @@
 
     } else if (state.mode === 'flight'){
       stage.innerHTML = state.lastPutt
-        ? '<h2>Rolling</h2><div class="big">' + ft(state.lastCarry).toFixed(1) + '<em>ft</em></div>'
-        : '<h2>' + (flight && flight.phase === 'roll' ? 'Bouncing' : 'In the air') + '</h2>' +
+        ? '<h2>' + (state.lastQuality || 'Rolling') + '</h2>' +
+          '<div class="big">' + ft(state.lastCarry).toFixed(1) + '<em>ft</em></div>'
+        : '<h2>' + (state.lastQuality || 'In the air') + '</h2>' +
           '<div class="big">' + state.lastCarry.toFixed(0) + '<em>yd carry</em></div>' +
           '<p class="sub">Pitched in the <b>' + LIES[state.landLie].name.toLowerCase() + '</b>' +
           (state.lastRoll > 0.4 ? ' &middot; running on <b>' + state.lastRoll.toFixed(0) + ' yd</b>'
