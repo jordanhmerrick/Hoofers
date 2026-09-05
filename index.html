@@ -107,7 +107,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.3</b><br>Aim + lie + collect</div>
+    <div class="build">Test rig <b>0.4</b><br>Bounce + run-out</div>
   </div>
 
   <div class="holebar">
@@ -130,7 +130,7 @@
     <span>Sensor <b id="sensor">idle</b></span>
   </div>
 
-  <p class="foot"><b>0.3 changes:</b> aim left and right, lies that punish you, and you now have to walk to the cup before you get paid.</p>
+  <p class="foot"><b>0.4 changes:</b> the ball bounces and runs on after it lands, so the aim ring shows the carry and the rest is your judgement.</p>
 </div>
 
 <script>
@@ -157,12 +157,12 @@
   }
 
   var LIES = {
-    tee:    { name:'Tee',    mult:1.00 },
-    fair:   { name:'Fairway',mult:1.00 },
-    rough:  { name:'Rough',  mult:0.70 },
-    deep:   { name:'Deep rough', mult:0.52 },
-    sand:   { name:'Bunker', mult:0.55 },
-    green:  { name:'Green',  mult:1.00 }
+    tee:    { name:'Tee',    mult:1.00, roll:0.20 },
+    fair:   { name:'Fairway',mult:1.00, roll:0.20 },
+    rough:  { name:'Rough',  mult:0.70, roll:0.07 },
+    deep:   { name:'Deep rough', mult:0.52, roll:0.03 },
+    sand:   { name:'Bunker', mult:0.55, roll:0.00 },
+    green:  { name:'Green',  mult:1.00, roll:0.11 }
   };
 
   var state = {
@@ -266,15 +266,28 @@
     pctx.fillRect(PX(0) - 12, PY(0) - 4, 12, 8);
 
     if (flight){
+      // carry, drawn dashed; the run-out drawn solid so you can see what the bounce gave you
       pctx.strokeStyle = css('--gold'); pctx.lineWidth = 2; pctx.setLineDash([4, 7]);
       pctx.beginPath(); pctx.moveTo(PX(flight.a0), PY(flight.l0));
-      pctx.lineTo(PX(flight.a1), PY(flight.l1)); pctx.stroke(); pctx.setLineDash([]);
-      var t = flight.t;
-      var cx = PX(flight.a0 + (flight.a1 - flight.a0) * t);
-      var cy = PY(flight.l0 + (flight.l1 - flight.l0) * t);
-      var hop = flight.roll ? 0 : Math.sin(t * Math.PI) * 16;
+      pctx.lineTo(PX(flight.aC), PY(flight.lC)); pctx.stroke(); pctx.setLineDash([]);
+      if (flight.phase === 'roll'){
+        pctx.strokeStyle = css('--ok'); pctx.lineWidth = 2.5;
+        pctx.beginPath(); pctx.moveTo(PX(flight.aC), PY(flight.lC));
+        pctx.lineTo(PX(flight.a1), PY(flight.l1)); pctx.stroke();
+      }
+      var cx, cy, hop, t = flight.t;
+      if (flight.phase === 'carry'){
+        cx = PX(flight.a0 + (flight.aC - flight.a0) * t);
+        cy = PY(flight.l0 + (flight.lC - flight.l0) * t);
+        hop = flight.putt ? 0 : Math.sin(t * Math.PI) * 18;
+      } else {
+        cx = PX(flight.aC + (flight.a1 - flight.aC) * t);
+        cy = PY(flight.lC + (flight.l1 - flight.lC) * t);
+        // three diminishing bounces, then it runs out
+        hop = flight.putt ? 0 : Math.abs(Math.sin(t * Math.PI * 2.6)) * 11 * (1 - t) * (1 - t);
+      }
       pctx.fillStyle = '#000'; pctx.globalAlpha = .35;
-      pctx.beginPath(); pctx.ellipse(cx, cy, 7, 3.5, 0, 0, 6.2832); pctx.fill();
+      pctx.beginPath(); pctx.ellipse(cx, cy, 7 - hop * .12, 3.5, 0, 0, 6.2832); pctx.fill();
       pctx.globalAlpha = 1;
       pctx.fillStyle = css('--ink');
       pctx.beginPath(); pctx.arc(cx, cy - hop, 7, 0, 6.2832); pctx.fill();
@@ -312,7 +325,8 @@
                 : 'Pull back for power.<br>Pull off to the side and it goes the other way.') +
       '</div></div>' +
       '<div class="bar' + (c.putt ? ' ok' : '') + '"><i id="powerBar"></i></div>' +
-      '<p class="sub" id="powerRead">Pull back to start.</p>';
+      '<p class="sub" id="powerRead">Pull back to start.</p>' +
+      (c.putt ? '' : '<p class="note">The ring is where it <b>lands</b>, not where it stops. It bounces and runs on from there — a long way off the fairway, hardly at all out of the rough, and not one inch out of a bunker.</p>');
   }
 
   function wirePad(c){
@@ -408,24 +422,43 @@
   function hit(dist, ang, isPutt){
     state.strokes++;
     var a0 = state.a, l0 = state.l;
-    var a1 = a0 + Math.cos(ang) * dist;
-    var l1 = l0 + Math.sin(ang) * dist;
-    state.lastCarry = dist; state.lastPutt = !!isPutt;
-    flight = { a0:a0, l0:l0, a1:a1, l1:l1, t:0, roll:!!isPutt };
+    var aC = a0 + Math.cos(ang) * dist;
+    var lC = l0 + Math.sin(ang) * dist;
+
+    // where it pitches decides what the bounce gives you
+    var landLie = lieAt(aC, lC);
+    var rollYd = isPutt ? 0 : dist * LIES[landLie].roll;
+    var a1 = aC + Math.cos(ang) * rollYd;
+    var l1 = lC + Math.sin(ang) * rollYd;
+    var total = dist + rollYd;
+
+    state.lastCarry = dist; state.lastRoll = rollYd; state.lastPutt = !!isPutt;
+    state.landLie = landLie;
+    flight = { a0:a0, l0:l0, aC:aC, lC:lC, a1:a1, l1:l1, t:0, phase:'carry', putt:!!isPutt };
     state.mode = 'flight';
     render();
 
-    var dur = isPutt ? 900 + dist * 90 : 780;
+    var carryDur = isPutt ? 900 + dist * 90 : 760;
+    var rollDur = isPutt ? 0 : 220 + rollYd * 90;
     var t0 = performance.now();
     (function fly(now){
-      var u = Math.min(1, (now - t0) / dur);
-      flight.t = isPutt ? 1 - Math.pow(1 - u, 2.2) : u;
-      drawPlan();
-      if (u < 1){ requestAnimationFrame(fly); return; }
+      var el = now - t0;
+      if (el < carryDur){
+        var u = el / carryDur;
+        flight.phase = 'carry';
+        flight.t = isPutt ? 1 - Math.pow(1 - u, 2.2) : u;
+        drawPlan(); requestAnimationFrame(fly); return;
+      }
+      if (rollDur > 0 && el < carryDur + rollDur){
+        var v = (el - carryDur) / rollDur;
+        flight.phase = 'roll';
+        flight.t = 1 - Math.pow(1 - v, 2.1);
+        drawPlan(); requestAnimationFrame(fly); return;
+      }
       flight = null;
       state.a = a1; state.l = l1;
       state.lie = lieAt(a1, l1);
-      state.needFt = (dist * 3) / RATIO;
+      state.needFt = (total * 3) / RATIO;
       state.walkedFt = 0; state.steps = 0;
 
       var holed = pinDist() <= 0.55;
@@ -557,7 +590,11 @@
     } else if (state.mode === 'flight'){
       stage.innerHTML = state.lastPutt
         ? '<h2>Rolling</h2><div class="big">' + ft(state.lastCarry).toFixed(1) + '<em>ft</em></div>'
-        : '<h2>In the air</h2><div class="big">' + state.lastCarry.toFixed(0) + '<em>yd</em></div>';
+        : '<h2>' + (flight && flight.phase === 'roll' ? 'Bouncing' : 'In the air') + '</h2>' +
+          '<div class="big">' + state.lastCarry.toFixed(0) + '<em>yd carry</em></div>' +
+          '<p class="sub">Pitched in the <b>' + LIES[state.landLie].name.toLowerCase() + '</b>' +
+          (state.lastRoll > 0.4 ? ' &middot; running on <b>' + state.lastRoll.toFixed(0) + ' yd</b>'
+                                : ' &middot; <b>stopped dead</b>') + '</p>';
 
     } else if (state.mode === 'walk'){
       var lieWord = state.lie === 'fair' ? 'Fairway. Nice.'
@@ -568,8 +605,9 @@
         '<h2>Your turn &middot; walk it off</h2>' +
         '<div class="big"><span id="walkNum">' + Math.ceil(state.needFt) + '</span><em>ft to go</em></div>' +
         '<div class="bar"><i id="walkBar"></i></div>' +
-        '<p class="sub"><b>' + lieWord + '</b> ' + state.lastCarry.toFixed(0) +
-          ' yd at 1:' + RATIO + ' is <b>' + state.needFt.toFixed(0) + ' ft</b> for you.</p>' +
+        '<p class="sub"><b>' + lieWord + '</b> ' + state.lastCarry.toFixed(0) + ' carry' +
+          (state.lastRoll > 0.4 ? ' plus ' + state.lastRoll.toFixed(0) + ' of roll' : '') +
+          ' at 1:' + RATIO + ' is <b>' + state.needFt.toFixed(0) + ' ft</b> for you.</p>' +
         walkControls();
       wireWalk('tee');
 
