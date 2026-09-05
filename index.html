@@ -94,6 +94,13 @@
             text-transform:uppercase;color:var(--muted);margin-top:-4px;}
   .tempolab b{color:var(--ok);font-weight:600;}
 
+  .strike{border:1px solid var(--line);border-radius:12px;background:var(--panel);
+          padding:11px 12px;display:flex;flex-direction:column;gap:7px;}
+  .srow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .srow .sk{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .srow .sv{font-size:13px;font-weight:600;color:var(--gold);text-align:right;}
+  .srow .sv.pure{color:var(--ok);}
+
   .rowbtn{display:flex;gap:8px;flex-wrap:wrap;}
   button{font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;cursor:pointer;
     border-radius:9px;padding:12px 14px;color:var(--ink);background:var(--grid);
@@ -135,7 +142,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.12</b><br><span id="roundName">Teaching round</span></div>
+    <div class="build">Test rig <b>0.13</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -150,6 +157,14 @@
     <div class="boardcap"><span id="capL">Tee</span><span id="lieCap">Lie: <b>Tee</b></span><span id="capR">Pin</span></div>
   </div>
 
+  <div class="strike">
+    <div class="srow"><span class="sk">Last strike</span><span class="sv" id="sQual">&mdash;</span></div>
+    <div class="tempo idle" id="sMeter"><div class="zone"></div><div class="mid"></div>
+      <i class="needle" id="sNeedle"></i></div>
+    <div class="tempolab"><span>Too quick</span><span><b>Pure</b></span><span>Too lazy</span></div>
+    <div class="srow"><span class="sk">Tempo</span><span class="sv" id="sTempo">&mdash;</span></div>
+  </div>
+
   <div class="stage" id="stage"></div>
 
   <div class="strip">
@@ -159,7 +174,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.12 changes:</b> the holes are shaped like golf holes. They were built from stacked sine waves, which is why they looked wavy - now each one is a straight run to a corner and a straight run out of it, a dogleg, with the corner rounded off. Only long par 5s get a second corner.</p>
+  <p class="foot"><b>0.13 changes:</b> the putter sizes itself to the putt, so a six inch tap-in is a six inch stroke - the softest putt used to be 1.4 ft, which is why close putts kept running past. The cup is 8 inches for putts and 11 for a chip-in, and a mishit costs a putter far less than a driver. The strike and tempo readout moved out from under your hand into its own panel that a redraw cannot wipe. And the backswing is graded now: the time you take going back is measured against the time coming through, and a jerky pull-back costs you.</p>
 </div>
 
 <script>
@@ -183,10 +198,22 @@
     // the short end and is what makes a wedge and a putter playable.
     bag: {
       // forgive widens the "pured it" band for that club only. 1 = no change.
-      driver: { name:'Driver', max:230, curve:1, aimSpan:1.00, flick:900, forgive:1.30 },
-      iron:   { name:'Iron',   max:110, curve:1, aimSpan:0.85, flick:900, forgive:1.12 },
-      wedge:  { name:'Wedge',  max:45,  curve:2, aimSpan:0.70, flick:820, forgive:1.00 },
-      putter: { name:'Putter', max:11,  curve:2, aimSpan:0.45, flick:620, forgive:1.00, putt:true }
+      // forgive widens the "pured it" band for that club. lossScale and
+      // angScale say how hard a mishit punishes distance and direction.
+      driver: { name:'Driver', max:230, curve:1, aimSpan:1.00, flick:900,
+                forgive:1.30, lossScale:1.00, angScale:1.00 },
+      iron:   { name:'Iron',   max:110, curve:1, aimSpan:0.85, flick:900,
+                forgive:1.12, lossScale:1.00, angScale:1.00 },
+      wedge:  { name:'Wedge',  max:45,  curve:2, aimSpan:0.70, flick:820,
+                forgive:1.00, lossScale:1.00, angScale:1.00 },
+      // A putter is a fine instrument, so a mishit costs far less. It also
+      // RANGES ITSELF to the putt in front of it: max = distance x autoRange.
+      // Without that the softest stroke the game could play was 1.36 ft, so
+      // from inside a foot and a half you could not help but run it past -
+      // which is why he could not hole out in six tries.
+      putter: { name:'Putter', max:11,  curve:2, aimSpan:0.45, flick:620,
+                forgive:1.40, lossScale:0.40, angScale:0.50, putt:true,
+                autoRange:1.60, autoMin:0.50 }
     },
     clubPick: 0.95,     // auto-club: shortest club whose max*this covers the shot
 
@@ -279,13 +306,11 @@
       viewPad: 2.5,             // yards of margin round the ball and the cup
       rings: [3, 6, 12, 24, 48],// rings drawn round the cup, in FEET
       cupYd: 0.118,             // a real cup is 4.25 inches across
-      // HOW CLOSE COUNTS AS IN. This was 0.55 yd - twenty inches - so a putt
-      // left a foot short was scored as holed. His note: "looks like i left a
-      // putt short and it counted it. several times. dont wnat that."
-      // 0.09 yd is 3.2 inches. A real cup radius is 0.059 yd; this is a little
-      // kinder than that because the rig treats the ball as a point.
-      // NOTE: this governs chip-ins and hole-outs from the fairway too.
-      holeRadius: 0.09
+      // HOW CLOSE COUNTS AS IN. 0.55 yd (20 in) holed putts he left short;
+      // 0.09 yd (3.2 in) holed nothing at all. Split in two, because a putt
+      // and a chip-in are not the same shot and never wanted the same number.
+      holeRadiusPutt: 0.22,   //  8 inches - a generous cup, but a cup
+      holeRadiusShot: 0.30    // 11 inches - a chip-in should be rare, not impossible
     },
 
     // ---- WALKING -----------------------------------------------------------
@@ -318,7 +343,21 @@
       // got hit hardest - his 0.9 note: "drives still glitch a little."
       minFlickSamples: 2,  // need this many move events before a strike counts
       minFlickMs: 55,      // no human flick is faster than this; floor it
-      ratioMin: 0.25, ratioMax: 3.0   // clamp, so a bad sample can't fly off
+      ratioMin: 0.25, ratioMax: 3.0,  // clamp, so a bad sample can't fly off
+      // ---- TEMPO (0.13) --------------------------------------------------
+      // His note: "there is still no motivation to have a smooth back swing
+      // before front swing." Right - the backswing only set power and aim, so
+      // it was a slider. Now the TIME you take going back is graded against
+      // the time you take coming through, the way real golf tempo works, and
+      // a jerky pull-back costs you as well. Deliberately gentle to start.
+      tempo: {
+        ideal: 2.6,        // backswing should take about this x the downswing
+        band: 1.90,        // anything from ideal/band to ideal*band is fine
+        loss: 0.18,        // distance lost at a full tempo miss
+        push: 0.06,        // and how far it shoves offline
+        maxReversals: 4,   // wobbles in the pull-back before it counts as jerky
+        minBackMs: 90      // floor, so one stray sample can't fake a fast one
+      }
     }
   };
 
@@ -533,13 +572,20 @@
   function clubOf(key){
     var b = TUNE.bag[key];
     return { key:key, name:b.name, max:b.max, curve:b.curve, aimSpan:b.aimSpan,
-             flick:b.flick, forgive:b.forgive || 1, putt:!!b.putt };
+             flick:b.flick, forgive:b.forgive || 1, putt:!!b.putt,
+             lossScale:b.lossScale === undefined ? 1 : b.lossScale,
+             angScale:b.angScale === undefined ? 1 : b.angScale };
   }
   function inBag(){
     return CLUB_ORDER.filter(function(k){ return HOLE.bag.indexOf(k) >= 0; });
   }
   function club(){
-    if (state.lie === 'green' && HOLE.bag.indexOf('putter') >= 0) return clubOf('putter');
+    if (state.lie === 'green' && HOLE.bag.indexOf('putter') >= 0){
+      var pt = clubOf('putter'), pb = TUNE.bag.putter;
+      // the putter sizes itself to the putt in front of it
+      pt.max = clamp(pinDist() * pb.autoRange, pb.autoMin, pb.max);
+      return pt;
+    }
     var d = pinDist(), have = inBag();
     if (!have.length) return clubOf('putter');
     for (var i = 0; i < have.length; i++){
@@ -706,9 +752,6 @@
                 : 'Pull back for power, off to a side to aim.<br>Then <b>flick forward</b> through the ball.') +
       '</div></div>' +
       '<div class="bar' + (c.putt ? ' ok' : '') + '"><i id="powerBar"></i></div>' +
-      '<div class="tempo idle" id="tempo"><div class="zone"></div><div class="mid"></div>' +
-        '<i class="needle" id="needle"></i></div>' +
-      '<div class="tempolab"><span>Too quick</span><span><b>Pure</b></span><span>Too lazy</span></div>' +
       '<p class="sub" id="powerRead">Press, pull back, then flick forward to strike.</p>' +
       (c.putt ? '' : '<p class="note">The ring is where it <b>lands</b>, not where it stops. It bounces and runs on from there — a long way off the fairway, hardly at all out of the rough, and not one inch out of a bunker.</p>');
   }
@@ -719,8 +762,13 @@
     var hint = document.getElementById('padHint');
     var bar = document.getElementById('powerBar');
     var read = document.getElementById('powerRead');
-    var tempo = document.getElementById('tempo');
-    var needle = document.getElementById('needle');
+    // these live OUTSIDE the stage, so a render cannot wipe them and his hand
+    // is not covering them. His note: "the pure meter is useless. 1 i cant see
+    // it when finger is on the pad, 2 i think think it moves."
+    var tempo = document.getElementById('sMeter');
+    var needle = document.getElementById('sNeedle');
+    var qOut = document.getElementById('sQual');
+    var tOut = document.getElementById('sTempo');
     var ctx = pc.getContext('2d');
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
     function size(){
@@ -788,9 +836,12 @@
       var r = pad.getBoundingClientRect();
       var x = e.clientX - r.left, y = e.clientY - r.top;
       padDrag = { sx:x, sy:y, cx:x, cy:y, backDy:0, backDx:0, deepY:y, deepX:x,
-                  locked:false, t0:0, fired:false };
+                  locked:false, t0:0, fired:false,
+                  tDown: performance.now(), tDeep: 0, reversals: 0, lastDir: 0 };
       hint.style.display = 'none';
       tempo.className = 'tempo idle'; needle.style.left = '50%';
+      qOut.textContent = 'swinging\u2026'; qOut.className = 'sv';
+      tOut.textContent = '\u2014';
       try { pad.setPointerCapture(e.pointerId); } catch(err){}
       update();
     });
@@ -804,8 +855,14 @@
       var SG = TUNE.swing;
       if (!padDrag.locked){
         if (dy >= padDrag.backDy){                    // still loading the backswing
+          if (padDrag.lastDir === -1) padDrag.reversals++;
+          padDrag.lastDir = 1;
           padDrag.backDy = dy; padDrag.backDx = padDrag.cx - padDrag.sx;
           padDrag.deepY = padDrag.cy; padDrag.deepX = padDrag.cx;
+          padDrag.tDeep = performance.now();
+        } else if (dy < padDrag.backDy - 4 && dy >= padDrag.backDy - SG.flickArm){
+          if (padDrag.lastDir === 1) padDrag.reversals++;   // a wobble, not a flick
+          padDrag.lastDir = -1;
         } else if (padDrag.backDy >= SG.minBack && dy < padDrag.backDy - SG.flickArm){
           padDrag.locked = true;                      // the flick has started
           padDrag.t0 = performance.now();
@@ -860,24 +917,50 @@
       var dist = v.dist, ang = v.ang, quality, miss;
       if (ratio < loBand){                    // left it out there
         miss = Math.min(1, (loBand - ratio) / loBand);
-        dist *= 1 - S.lazyLoss * miss;
-        ang += (c.putt ? S.lazyPushPutt : S.lazyPush) * miss;
+        dist *= 1 - S.lazyLoss * c.lossScale * miss;
+        ang += (c.putt ? S.lazyPushPutt : S.lazyPush) * c.angScale * miss;
         quality = miss > 0.55 ? 'Chunked it' : 'Left it out there';
       } else if (ratio > hiBand){             // came out of it early
         miss = -Math.min(1, (ratio - hiBand) / 1.4);
-        dist *= 1 - S.quickLoss * Math.abs(miss);
-        ang -= (c.putt ? S.quickPullPutt : S.quickPull) * Math.abs(miss);
+        dist *= 1 - S.quickLoss * c.lossScale * Math.abs(miss);
+        ang -= (c.putt ? S.quickPullPutt : S.quickPull) * c.angScale * Math.abs(miss);
         quality = Math.abs(miss) > 0.55 ? 'Came out of it' : 'Bit quick';
       } else {
         miss = (ratio - 1.1) / 0.4 * -0.25;
         quality = 'Pured it';
       }
-      ang += faceErr * (c.putt ? S.faceBendPutt : S.faceBend);
+      ang += faceErr * (c.putt ? S.faceBendPutt : S.faceBend) * c.angScale;
       if (Math.abs(faceErr) > 0.32 && quality === 'Pured it') quality = faceErr > 0 ? 'Pushed it' : 'Pulled it';
 
+      // ---- TEMPO: the time going back, against the time coming through ----
+      var TP = S.tempo;
+      var backT = Math.max(TP.minBackMs / 1000,
+                           ((padDrag.tDeep || padDrag.tDown) - padDrag.tDown) / 1000);
+      var tRatio = backT / dt;
+      var tOff = 0, tWord;
+      if (tRatio < TP.ideal / TP.band){
+        tOff = Math.min(1, (TP.ideal / TP.band - tRatio) / (TP.ideal / TP.band));
+        tWord = 'Rushed it back';
+      } else if (tRatio > TP.ideal * TP.band){
+        tOff = Math.min(1, (tRatio - TP.ideal * TP.band) / (TP.ideal * TP.band * 2));
+        tWord = 'Dragged it back';
+      } else {
+        tWord = 'Smooth';
+      }
+      var jerk = Math.min(1, padDrag.reversals / TP.maxReversals);
+      if (jerk > 0.5 && tOff < 0.3) tWord = 'Jerky back';
+      var rough = Math.max(tOff, jerk);
+      dist *= 1 - TP.loss * rough * c.lossScale;
+      ang += TP.push * rough * c.angScale;
+
       state.lastQuality = quality;
+      state.lastTempo = tWord + ' \u00b7 ' + tRatio.toFixed(1) + ':1';
       needle.style.left = (50 + Math.max(-48, Math.min(48, miss * 48))) + '%';
       tempo.className = 'tempo';
+      qOut.textContent = quality;
+      qOut.className = 'sv' + (quality === 'Pured it' ? ' pure' : '');
+      tOut.textContent = state.lastTempo;
+      tOut.className = 'sv' + (tWord === 'Smooth' ? ' pure' : '');
 
       clearDrag(); paint(null); aim = null;
       hit(dist, ang, c.putt);
@@ -959,7 +1042,8 @@
       state.needFt = (total * 3) / COURSE.ratio * state.liePen;
       state.walkedFt = 0; state.steps = 0;
 
-      var holed = pinDist() <= TUNE.putt.holeRadius;
+      var holed = pinDist() <= (isPutt ? TUNE.putt.holeRadiusPutt
+                                        : TUNE.putt.holeRadiusShot);
       if (holed){
         // you still have to go and get it — that is when you get paid. But a
         // tap-in from two feet asked him to walk three inches, which read as
