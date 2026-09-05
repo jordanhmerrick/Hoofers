@@ -134,7 +134,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.7</b><br>Generated nine</div>
+    <div class="build">Test rig <b>0.8</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -158,7 +158,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.7 changes:</b> holes are generated, not drawn by hand, so a course never runs out. Full bag - Driver, Iron, Wedge, Putter. Nine holes end to end with a card at the end. Rough and sand now cost you steps as well as strokes. Every number in the game is a named dial in one block at the top of the file.</p>
+  <p class="foot"><b>0.8 changes:</b> the opening round is a teaching round now - off the normal golf format on purpose. You start with a wedge and a putter on a 28 yard hole, the iron arrives at 3 and the driver at 6, and the holes grow as the bag does. Sign the card and you go out to a real par 36 nine with the full bag.</p>
 </div>
 
 <script>
@@ -202,6 +202,38 @@
       seed: 20260905   // change this for a brand new set of nine holes
     },
 
+    // ---- THE TEACHING ROUND ------------------------------------------------
+    // His call, 2026-09-05: "the opening round can be off the normal routine
+    // to learn the game and process." So the first nine does NOT obey the
+    // 2/5/2 standard composition — it is a ramp, and the BAG grows across it.
+    // Still generated, not hand-drawn: the generator just gets a smaller bag.
+    // THE RAMP BELOW IS MINE, not his. Change any row.
+    tutorial: {
+      use: true,
+      ratio: 7,
+      seed: 4041,
+      difficulty: [0.00, 0.12, 0.20, 0.30, 0.40, 0.50, 0.62, 0.75, 0.90],
+      holes: [
+        { par:3, reach:['wedge'],                 bag:['wedge','putter'], bunkers:0,
+          unlock:'Wedge and putter',
+          teach:'Pull back, flick forward. Then walk over and pick it up.' },
+        { par:3, reach:['wedge'],                 bag:['wedge','putter'], bunkers:0,
+          teach:'The ring is where it LANDS. It bounces and runs on from there.' },
+        { par:3, reach:['iron'],                  bag:['iron','wedge','putter'], bunkers:0,
+          unlock:'Iron', teach:'A longer club is a longer walk. That is the trade.' },
+        { par:3, reach:['iron'],                  bag:['iron','wedge','putter'], bunkers:2,
+          teach:'Stay out of the sand. A bad lie costs you steps as well as strokes.' },
+        { par:4, reach:['iron','iron'],           bag:['iron','wedge','putter'],
+          teach:'Two shots to reach this one. Pick your spot for the second.' },
+        { par:4, reach:['driver','iron'],         bag:['driver','iron','wedge','putter'],
+          unlock:'Driver', teach:'Cut the corner and you save yourself real footsteps.' },
+        { par:4, reach:['driver','iron'],         bag:['driver','iron','wedge','putter'] },
+        { par:4, reach:['driver','iron'],         bag:['driver','iron','wedge','putter'] },
+        { par:5, reach:['driver','iron','iron'],  bag:['driver','iron','wedge','putter'],
+          teach:'Full bag, full hole. That is the game.' }
+      ]
+    },
+
     // ---- THE HOLE GENERATOR ------------------------------------------------
     gen: {
       // Hole length as a fraction of what the BAG can reach in (par-2) shots.
@@ -217,7 +249,9 @@
       roughBand: 7,                    // yards of rough outside the fairway
       greenFrac: 0.030, greenMin: 5.0, greenCap: 0.90,  // cap = x putter max
       bunkersMin: 1, bunkersMax: 5,
-      bunkerRmin: 3.0, bunkerRmax: 6.0,
+      bunkerFrac: 0.020,               // bunker radius as a fraction of hole length
+      bunkerRmin: 2.0, bunkerRmax: 6.5, // ...clamped, so it scales but stays sane
+      bunkerJitter: 0.5,
       bunkerFrom: 0.25, bunkerTo: 0.95, // where along the hole they can sit
       bunkerGap: 0.6,                   // how far off the fairway edge, x radius
       viewPad: 0.10,                    // board looks this far past the pin
@@ -269,14 +303,18 @@
     };
   }
 
-  function makeHole(n, par, diff, rand){
+  function makeHole(n, par, diff, rand, spec){
     var G = TUNE.gen;
+    spec = spec || {};
 
     // THE BAG DECIDES HOW LONG A HOLE CAN BE. Par 3 = one iron, par 4 = drive
     // plus approach, par 5 = drive plus two. That is the par mismatch from
     // playtest 5 solved at scale — a generated hole is always reachable.
+    // On the teaching round the bag is smaller, so the holes come out shorter
+    // on their own. Same generator, less in the bag.
+    var reachList = spec.reach || G.reach[par] || G.reach[4];
     var reach = 0;
-    (G.reach[par] || G.reach[4]).forEach(function(k){ reach += TUNE.bag[k].max; });
+    reachList.forEach(function(k){ reach += TUNE.bag[k].max; });
     var frac = G.lenMin + (G.lenMax - G.lenMin) * diff;
     var yards = Math.round(reach * frac * (1 - G.lenJitter / 2 + rand() * G.lenJitter));
 
@@ -297,15 +335,20 @@
 
     var hole = {
       n: n, par: par, diff: diff, yards: yards, halfW: halfW, green: green,
-      bends: bends, bunkers: []
+      bends: bends, bunkers: [],
+      bag: spec.bag || ['driver','iron','wedge','putter'],
+      unlock: spec.unlock || null, teach: spec.teach || null
     };
 
     // bunkers sit just off the fairway edge, mostly on the outside of a bend
-    var nbunk = Math.round(G.bunkersMin + (G.bunkersMax - G.bunkersMin) * diff);
+    var nbunk = (spec.bunkers === undefined)
+      ? Math.round(G.bunkersMin + (G.bunkersMax - G.bunkersMin) * diff)
+      : spec.bunkers;
     for (i = 0; i < nbunk; i++){
       var t = G.bunkerFrom + rand() * (G.bunkerTo - G.bunkerFrom);
       var a = t * yards;
-      var r = G.bunkerRmin + rand() * (G.bunkerRmax - G.bunkerRmin);
+      var r = clamp(yards * G.bunkerFrac * (1 - G.bunkerJitter / 2 + rand() * G.bunkerJitter),
+                    G.bunkerRmin, G.bunkerRmax);
       var c = centreOf(hole, a), hw = halfWidthOf(hole, a);
       var side = rand() < 0.5 ? -1 : 1;
       hole.bunkers.push({ a:a, l: c + side * (hw + r * G.bunkerGap), r:r });
@@ -329,20 +372,30 @@
     return h.halfW * (1 - TUNE.gen.widthNarrow * t);
   }
 
-  function makeCourse(){
-    var C = TUNE.course, rand = rng(C.seed), holes = [], yards = 0;
-    for (var i = 0; i < C.holes; i++){
-      var par = C.parOrder[i % C.parOrder.length];
-      var diff = C.difficulty[i % C.difficulty.length];
-      var h = makeHole(i + 1, par, diff, rand);
+  function makeCourse(kind){
+    var teaching = (kind === 'tutorial');
+    var T = TUNE.tutorial, C = TUNE.course;
+    var seed = teaching ? T.seed : C.seed;
+    var ratio = teaching ? T.ratio : C.ratio;
+    var count = teaching ? T.holes.length : C.holes;
+    var rand = rng(seed), holes = [], yards = 0;
+    for (var i = 0; i < count; i++){
+      var spec = teaching ? T.holes[i] : null;
+      var par  = teaching ? spec.par : C.parOrder[i % C.parOrder.length];
+      var list = teaching ? T.difficulty : C.difficulty;
+      var h = makeHole(i + 1, par, list[i % list.length], rand, spec);
       holes.push(h); yards += h.yards;
     }
     var par = holes.reduce(function(s, h){ return s + h.par; }, 0);
-    return { holes:holes, par:par, yards:yards,
-             feet: (yards * 3) / C.ratio, ratio: C.ratio };
+    return { kind: teaching ? 'tutorial' : 'standard', name: teaching ? 'Teaching round' : 'The nine',
+             holes:holes, par:par, yards:yards, feet:(yards * 3) / ratio,
+             ratio:ratio, seed:seed };
   }
 
-  var COURSE = makeCourse();
+  // the teaching round comes first, unless it is switched off
+  var FIRST = TUNE.tutorial.use ? 'tutorial' : 'standard';
+
+  var COURSE = makeCourse(FIRST);
   var HOLE = COURSE.holes[0];
   function centre(a){ return centreOf(HOLE, a); }
   function halfWidth(a){ return halfWidthOf(HOLE, a); }
@@ -361,6 +414,7 @@
   var stage = document.getElementById('stage');
   var elPin = document.getElementById('toPin');
   var elHole = document.getElementById('holeNum');
+  var elRound = document.getElementById('roundName');
   var elPar = document.getElementById('holePar');
   var elStrokes = document.getElementById('strokes');
   var elStTotal = document.getElementById('stTotal');
@@ -397,13 +451,17 @@
     return { key:key, name:b.name, max:b.max, curve:b.curve,
              aimSpan:b.aimSpan, flick:b.flick, putt:!!b.putt };
   }
+  function inBag(){
+    return CLUB_ORDER.filter(function(k){ return HOLE.bag.indexOf(k) >= 0; });
+  }
   function club(){
-    if (state.lie === 'green') return clubOf('putter');
-    var d = pinDist();
-    for (var i = 0; i < CLUB_ORDER.length; i++){
-      if (d <= TUNE.bag[CLUB_ORDER[i]].max * TUNE.clubPick) return clubOf(CLUB_ORDER[i]);
+    if (state.lie === 'green' && HOLE.bag.indexOf('putter') >= 0) return clubOf('putter');
+    var d = pinDist(), have = inBag();
+    if (!have.length) return clubOf('putter');
+    for (var i = 0; i < have.length; i++){
+      if (d <= TUNE.bag[have[i]].max * TUNE.clubPick) return clubOf(have[i]);
     }
-    return clubOf(CLUB_ORDER[CLUB_ORDER.length - 1]);
+    return clubOf(have[have.length - 1]);
   }
   // aim is measured FROM the line to the hole, not from the axis of the hole
   function bearing(){ return Math.atan2(-state.l, HOLE.yards - state.a); }
@@ -865,7 +923,13 @@
 
     if (state.mode === 'tee'){
       var c = club();
-      stage.innerHTML = padHTML(c) +
+      var teachHTML = '';
+      if (state.strokes === 0){
+        if (HOLE.unlock) teachHTML += '<p class="note"><b>' + HOLE.unlock +
+          '</b> is in the bag.</p>';
+        if (HOLE.teach) teachHTML += '<p class="note">' + HOLE.teach + '</p>';
+      }
+      stage.innerHTML = teachHTML + padHTML(c) +
         (motionOn ? '' :
           '<div class="rowbtn"><button class="primary" id="btnMotion">Turn on step counting</button></div>' +
           '<p class="note warn" id="sensorMsg">' + sensorMessage() + '</p>');
@@ -948,11 +1012,17 @@
           '</b> steps, at a 1:' + COURSE.ratio + ' ratio.</p>' +
         '<p class="note">Tighten <b>TUNE.course.ratio</b> and the same nine walks further. ' +
           'About <b>1.4</b> makes this course a mile.</p>' +
-        '<div class="rowbtn"><button class="primary" id="btnNew">A brand new nine</button>' +
-        '<button id="btnSame">Same nine again</button></div>';
+        '<div class="rowbtn"><button class="primary" id="btnNew">' +
+          (COURSE.kind === 'tutorial' ? 'Out to the course &rarr;' : 'A brand new nine') +
+        '</button><button id="btnSame">Same nine again</button></div>';
       document.getElementById('btnNew').addEventListener('click', function(){
-        TUNE.course.seed = (TUNE.course.seed * 1664525 + 1013904223) >>> 0;
-        COURSE = makeCourse(); startRound();
+        if (COURSE.kind === 'tutorial'){
+          COURSE = makeCourse('standard');          // school is out, full bag
+        } else {
+          TUNE.course.seed = (TUNE.course.seed * 1664525 + 1013904223) >>> 0;
+          COURSE = makeCourse('standard');
+        }
+        startRound();
       });
       document.getElementById('btnSame').addEventListener('click', startRound);
     }
@@ -981,6 +1051,7 @@
     state.holeFt = 0; state.holeSteps = 0;
     flight = null; aim = null;
     elHole.textContent = HOLE.n + ' of ' + COURSE.holes.length;
+    elRound.textContent = COURSE.name;
     elPar.textContent = HOLE.par + ' · ' + HOLE.yards + ' yd';
   }
   function startRound(){
@@ -988,10 +1059,10 @@
     loadHole(0);
     var f = document.getElementById('foot');
     if (f) f.innerHTML =
-      '<b>This nine:</b> par ' + COURSE.par + ' &middot; ' + COURSE.yards +
+      '<b>' + COURSE.name + ':</b> par ' + COURSE.par + ' &middot; ' + COURSE.yards +
       ' game yards &middot; <b>' + Math.round(COURSE.feet) + ' ft</b> (' +
       (COURSE.feet / 5280).toFixed(2) + ' mi) of real walking at 1:' + COURSE.ratio +
-      ', before any penalty for a bad lie. Seed ' + TUNE.course.seed + '.';
+      ', before any penalty for a bad lie. Seed ' + COURSE.seed + '.';
     render();
   }
 
