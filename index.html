@@ -134,7 +134,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.8</b><br><span id="roundName">Teaching round</span></div>
+    <div class="build">Test rig <b>0.9</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -146,7 +146,7 @@
 
   <div class="board">
     <canvas id="plan" width="820" height="380"></canvas>
-    <div class="boardcap"><span>Tee</span><span id="lieCap">Lie: <b>Tee</b></span><span>Pin</span></div>
+    <div class="boardcap"><span id="capL">Tee</span><span id="lieCap">Lie: <b>Tee</b></span><span id="capR">Pin</span></div>
   </div>
 
   <div class="stage" id="stage"></div>
@@ -158,7 +158,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.8 changes:</b> the opening round is a teaching round now - off the normal golf format on purpose. You start with a wedge and a putter on a 28 yard hole, the iron arrives at 3 and the driver at 6, and the holes grow as the bag does. Sign the card and you go out to a real par 36 nine with the full bag.</p>
+  <p class="foot"><b>0.9 changes:</b> on the green the board zooms right in, with the cup at real size and rings at 3, 6, 12 and 24 feet, so a putt can actually be aimed. And the swing pad no longer fires shots you did not take - a wobble in the pull-back can't arm the flick, pulling back further un-arms it, and iOS losing the touch now abandons the swing instead of duffing it.</p>
 </div>
 
 <script>
@@ -258,6 +258,17 @@
       deepPast: 0.18                    // deep rough starts this far past the pin
     },
 
+    // ---- PUTTING -----------------------------------------------------------
+    // On the green the board ZOOMS IN so the player can actually aim. Without
+    // this a 446 yd generated hole drew its whole green 15 px wide, and his
+    // note on 0.7 was exactly right: "you cant aim, its just swinging blindly."
+    putt: {
+      viewMin: 7,               // never frame tighter than this many yards
+      viewPad: 2.5,             // yards of margin round the ball and the cup
+      rings: [3, 6, 12, 24, 48],// rings drawn round the cup, in FEET
+      cupYd: 0.118              // a real cup is 4.25 inches across
+    },
+
     // ---- WALKING -----------------------------------------------------------
     walk: {
       stride: 2.5,        // feet per step; his saved setting overrides this
@@ -275,7 +286,14 @@
       lazyPush: 0.16, lazyPushPutt: 0.05,
       quickPull: 0.19, quickPullPutt: 0.05,
       faceBend: 0.45, faceBendPutt: 0.18,
-      duffPower: 0.28, duffPush: 0.22
+      duffPower: 0.28, duffPush: 0.22,
+      // ---- INPUT GUARDS (0.9) --------------------------------------------
+      // His 0.9 note: "The swipe screen glitches and shot before I flicked
+      // several times." A wobble in the pull-back used to arm the flick, and
+      // iOS dropping pointer capture used to count as letting go.
+      minBack: 26,      // px of backswing before ANY shot can fire
+      flickArm: 20,     // px of forward travel before the flick counts as started
+      strikeAt: 0.18    // fires when the finger comes back inside this x backswing
     }
   };
 
@@ -421,6 +439,8 @@
   var elFtTotal = document.getElementById('ftTotal');
   var elSensor = document.getElementById('sensor');
   var lieCap = document.getElementById('lieCap');
+  var capL = document.getElementById('capL');
+  var capR = document.getElementById('capR');
 
   function pinDist(){ return Math.hypot(HOLE.yards - state.a, -state.l); }
   function ft(y){ return y * 3; }
@@ -471,13 +491,34 @@
   var pctx = plan.getContext('2d');
   var W = plan.width, H = plan.height;
   var A0 = 44, A1 = W - 46;
-  function PX(a){ return A0 + (A1 - A0) * (a / HOLE.viewLen); }
-  function PY(l){ return H / 2 + (l / HOLE.span) * (H / 2 - 12); }
+  var AW = A1 - A0, LH = H / 2 - 12;
+
+  // What slice of the hole the board is showing. Off the green it is the whole
+  // hole; ON the green it frames the ball and the cup, at equal scale on both
+  // axes so a circle is still a circle.
+  var VIEW = { a0:0, a1:100, lc:0, ls:20, green:false };
+  function setView(){
+    if (state.lie !== 'green'){
+      VIEW = { a0:0, a1:HOLE.viewLen, lc:0, ls:HOLE.span, green:false };
+      return;
+    }
+    var P = TUNE.putt;
+    var dA = Math.abs(HOLE.yards - state.a), dL = Math.abs(state.l);
+    var half = Math.max(Math.max(dA, P.viewMin) / 2 + P.viewPad,
+                        (dL / 2 + P.viewPad) * (AW / (2 * LH)));
+    VIEW = { a0: (state.a + HOLE.yards) / 2 - half,
+             a1: (state.a + HOLE.yards) / 2 + half,
+             lc: state.l / 2,
+             ls: LH * (2 * half / AW), green:true };
+  }
+  function PX(a){ return A0 + AW * ((a - VIEW.a0) / (VIEW.a1 - VIEW.a0)); }
+  function PY(l){ return H / 2 + ((l - VIEW.lc) / VIEW.ls) * LH; }
   function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
   var flight = null, aim = null;
 
   function drawPlan(){
+    setView();
     pctx.clearRect(0, 0, W, H);
     pctx.fillStyle = css('--rough'); pctx.fillRect(0, 0, W, H);
 
@@ -502,7 +543,8 @@
     pctx.ellipse(PX(HOLE.yards), PY(0), (PX(HOLE.green) - PX(0)), Math.abs(PY(HOLE.green) - PY(0)), 0, 0, 6.2832);
     pctx.fill();
     pctx.strokeStyle = css('--ink'); pctx.lineWidth = 2;
-    pctx.beginPath(); pctx.arc(PX(HOLE.yards), PY(0), 6, 0, 6.2832); pctx.stroke();
+    var cupPx = Math.max(6, PX(TUNE.putt.cupYd) - PX(0));
+    pctx.beginPath(); pctx.arc(PX(HOLE.yards), PY(0), cupPx, 0, 6.2832); pctx.stroke();
     pctx.fillStyle = css('--hoof');
     pctx.beginPath(); pctx.moveTo(PX(HOLE.yards), PY(0) - 6);
     pctx.lineTo(PX(HOLE.yards) + 16, PY(0) - 12); pctx.lineTo(PX(HOLE.yards), PY(0) - 18);
@@ -512,17 +554,33 @@
     pctx.strokeStyle = css('--line-hi'); pctx.lineWidth = 1;
     pctx.fillStyle = css('--muted'); pctx.font = '11px "IBM Plex Mono", monospace';
     pctx.textAlign = 'center';
-    var tick = HOLE.yards > 300 ? 50 : HOLE.yards > 150 ? 25 : 10;
-    for (var y = 0; y <= HOLE.yards; y += tick){
-      pctx.globalAlpha = .5;
-      pctx.beginPath(); pctx.moveTo(PX(y), H - 16); pctx.lineTo(PX(y), H - 9); pctx.stroke();
-      pctx.globalAlpha = 1;
-      if (y % (tick * 2) === 0 && y > 0) pctx.fillText(String(y), PX(y), H - 2);
+    if (VIEW.green){
+      // rings round the cup, in feet, so a putt can actually be judged
+      pctx.textAlign = 'center';
+      TUNE.putt.rings.forEach(function(ftR){
+        var rx = PX(ftR / 3) - PX(0);
+        if (rx < 14 || rx > AW * 0.62) return;
+        pctx.globalAlpha = .30;
+        pctx.beginPath(); pctx.arc(PX(HOLE.yards), PY(0), rx, 0, 6.2832); pctx.stroke();
+        pctx.globalAlpha = .75;
+        pctx.fillText(ftR + ' ft', PX(HOLE.yards), PY(0) - rx - 5);
+        pctx.globalAlpha = 1;
+      });
+    } else {
+      var tick = HOLE.yards > 300 ? 50 : HOLE.yards > 150 ? 25 : 10;
+      for (var y = 0; y <= HOLE.yards; y += tick){
+        pctx.globalAlpha = .5;
+        pctx.beginPath(); pctx.moveTo(PX(y), H - 16); pctx.lineTo(PX(y), H - 9); pctx.stroke();
+        pctx.globalAlpha = 1;
+        if (y % (tick * 2) === 0 && y > 0) pctx.fillText(String(y), PX(y), H - 2);
+      }
     }
 
     // tee
-    pctx.fillStyle = css('--muted');
-    pctx.fillRect(PX(0) - 12, PY(0) - 4, 12, 8);
+    if (!VIEW.green){
+      pctx.fillStyle = css('--muted');
+      pctx.fillRect(PX(0) - 12, PY(0) - 4, 12, 8);
+    }
 
     if (flight){
       // carry, drawn dashed; the run-out drawn solid so you can see what the bounce gave you
@@ -679,19 +737,26 @@
       padDrag.cx = e.clientX - r.left; padDrag.cy = e.clientY - r.top;
       var dy = padDrag.cy - padDrag.sy;
 
+      var SG = TUNE.swing;
       if (!padDrag.locked){
         if (dy >= padDrag.backDy){                    // still loading the backswing
           padDrag.backDy = dy; padDrag.backDx = padDrag.cx - padDrag.sx;
           padDrag.deepY = padDrag.cy; padDrag.deepX = padDrag.cx;
-        } else if (padDrag.backDy > 14 && dy < padDrag.backDy - 10){
+        } else if (padDrag.backDy >= SG.minBack && dy < padDrag.backDy - SG.flickArm){
           padDrag.locked = true;                      // the flick has started
           padDrag.t0 = performance.now();
         }
+      } else if (dy > padDrag.backDy){
+        // he was not flicking, he was still loading it. Un-arm and keep going.
+        padDrag.locked = false;
+        padDrag.backDy = dy; padDrag.backDx = padDrag.cx - padDrag.sx;
+        padDrag.deepY = padDrag.cy; padDrag.deepX = padDrag.cx;
       }
       update();
 
       // strike when the hand comes through past the ball
-      if (padDrag.locked && dy <= padDrag.backDy * 0.18) fire(e);
+      if (padDrag.locked && padDrag.backDy >= SG.minBack &&
+          dy <= padDrag.backDy * SG.strikeAt) fire(e);
     });
 
     function fire(e){
@@ -733,7 +798,7 @@
       needle.style.left = (50 + Math.max(-48, Math.min(48, miss * 48))) + '%';
       tempo.className = 'tempo';
 
-      padDrag = null; paint(null); aim = null;
+      clearDrag(); paint(null); aim = null;
       hit(dist, ang, c.putt);
       if (e && e.pointerId !== undefined){ try { pad.releasePointerCapture(e.pointerId); } catch(err){} }
     }
@@ -744,8 +809,9 @@
       // let go without flicking: that is a duff, not a shot
       var v = vals();
       var p = v ? v.p : 0;
-      padDrag = null; paint(null); aim = null; drawPlan();
-      if (p < 0.06){
+      var loaded = padDrag.backDy >= TUNE.swing.minBack;
+      clearDrag(); paint(null); aim = null; drawPlan();
+      if (p < 0.06 || !loaded){
         hint.style.display = ''; bar.style.width = '0';
         read.textContent = 'Press, pull back, then flick forward to strike.';
         return;
@@ -753,9 +819,17 @@
       state.lastQuality = 'Never let go of it';
       hit(v.dist * TUNE.swing.duffPower, v.ang + TUNE.swing.duffPush, c.putt);
     }
+    function abandon(){
+      if (!padDrag) return;
+      clearDrag(); paint(null); aim = null; drawPlan();
+      hint.style.display = ''; bar.style.width = '0';
+      read.textContent = 'Press, pull back, then flick forward to strike.';
+    }
     pad.addEventListener('pointerup', release);
-    pad.addEventListener('pointercancel', release);
-    pad.addEventListener('lostpointercapture', release);
+    // iOS drops pointer capture and cancels touches on its own, mid-swing.
+    // Those are NOT the player letting go, so they must never fire a shot.
+    pad.addEventListener('pointercancel', abandon);
+    pad.addEventListener('lostpointercapture', abandon);
   }
 
   // ---------------- the loop ----------------
@@ -913,12 +987,25 @@
   }
 
   // ---------------- render ----------------
+  // Rebuilding the stage replaces the swing pad. If that happens mid-drag, iOS
+  // reports a lost pointer and the old code turned it into a phantom shot. So
+  // a render that lands during a swing waits until the swing is over.
+  var pendingRender = false;
+  function clearDrag(){
+    padDrag = null;
+    if (pendingRender){ pendingRender = false; render(); }
+  }
   function render(){
+    if (padDrag){ pendingRender = true; return; }
     elPin.textContent = distLabel();
     elStrokes.textContent = state.strokes;
     elStTotal.textContent = state.totalSteps;
     elFtTotal.textContent = Math.round(state.totalFt) + ' ft';
-    lieCap.innerHTML = 'Lie: <b>' + LIES[state.lie].name + '</b>';
+    lieCap.innerHTML = state.lie === 'green'
+      ? 'On the green &middot; <b>zoomed in</b>'
+      : 'Lie: <b>' + LIES[state.lie].name + '</b>';
+    capL.textContent = state.lie === 'green' ? 'Ball' : 'Tee';
+    capR.textContent = state.lie === 'green' ? 'Cup' : 'Pin';
     drawPlan();
 
     if (state.mode === 'tee'){
