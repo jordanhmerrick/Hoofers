@@ -1,0 +1,540 @@
+<title>Cul-de-sac Country Club</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;900&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --page:#0A1712; --card:#0F241B; --card-2:#163024; --line:#254534;
+    --ink:#EDF6EF; --muted:#93AF9E;
+    --gold:#FFC93C; --gold-lite:#FFE79A; --hoof:#FF7A2F;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --page:#0A1712; --card:#0F241B; --card-2:#163024; --line:#254534;
+      --ink:#EDF6EF; --muted:#93AF9E;
+    }
+  }
+  :root[data-theme="dark"]{
+    --page:#0A1712; --card:#0F241B; --card-2:#163024; --line:#254534;
+    --ink:#EDF6EF; --muted:#93AF9E;
+  }
+  :root[data-theme="light"]{
+    --page:#E9F0EA; --card:#FFFFFF; --card-2:#F4F9F4; --line:#D3E2D6;
+    --ink:#0F241B; --muted:#5A7364;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --page:#E9F0EA; --card:#FFFFFF; --card-2:#F4F9F4; --line:#D3E2D6;
+      --ink:#0F241B; --muted:#5A7364;
+    }
+  }
+
+  body{background:var(--page);color:var(--ink);
+       font-family:"Nunito",ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:40px 22px 60px;}
+
+  .mast{display:flex;flex-wrap:wrap;align-items:flex-end;gap:22px;margin-bottom:16px;}
+  .eyebrow{font-size:11px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;
+           color:var(--hoof);margin-bottom:9px;}
+  h1{font-family:"Baloo 2",sans-serif;font-weight:800;line-height:.94;margin:0;
+     font-size:clamp(38px,6.2vw,62px);letter-spacing:-.015em;max-width:13ch;
+     background:linear-gradient(180deg,#FFE79A,#FFC93C 55%,#E09A14);
+     -webkit-background-clip:text;background-clip:text;color:transparent;
+     filter:drop-shadow(0 2px 0 rgba(0,0,0,.3));text-wrap:balance;}
+  .totals{display:flex;margin-left:auto;}
+  .tot{padding:0 17px;border-left:1px solid var(--line);text-align:right;}
+  .tot:first-child{border-left:0;}
+  .tot .k{display:block;font-size:9.5px;font-weight:900;letter-spacing:.15em;
+          text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+  .tot .v{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:26px;line-height:1;
+          font-variant-numeric:tabular-nums;}
+  .tot .v em{font-style:normal;font-size:13px;color:var(--muted);margin-left:2px;}
+  .tot.hot .v{color:var(--gold);}
+
+  /* ---------- correction panel ---------- */
+  .fix{border:1px solid #5A3520;border-radius:20px;padding:20px 22px;margin:0 0 30px;
+       background:linear-gradient(180deg,rgba(255,122,47,.11),transparent);}
+  .fix h2{font-size:10.5px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;
+          color:var(--hoof);margin:0 0 11px;}
+  .fix p{margin:0;font-size:15.5px;line-height:1.62;}
+  .fix p + p{margin-top:10px;font-size:14px;color:var(--muted);}
+  .fix b{font-weight:800;color:var(--ink);}
+
+  /* ---------- viewer ---------- */
+  .viewer{border:1px solid var(--line);border-radius:22px;overflow:hidden;background:var(--card);
+          margin-bottom:30px;}
+  .canvas-wrap{position:relative;width:100%;aspect-ratio:16/10;background:#8FD3E8;}
+  @media (max-width:640px){.canvas-wrap{aspect-ratio:4/5;}}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  .grade{position:absolute;inset:0;pointer-events:none;
+    background:
+      radial-gradient(50% 40% at 78% 10%, rgba(255,238,180,.4), rgba(255,238,180,0) 72%),
+      radial-gradient(130% 84% at 50% 46%, rgba(0,0,0,0) 55%, rgba(5,26,18,.4) 100%);}
+  .fallback{position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    padding:30px;text-align:center;font-size:14px;line-height:1.55;color:#0F241B;
+    background:linear-gradient(180deg,#A8DFF2,#8FD558);}
+  .fallback.on{display:flex;}
+
+  .card-hud{position:absolute;left:16px;top:16px;z-index:4;pointer-events:none;
+    border-radius:16px;padding:11px 15px;color:#F2FBF4;
+    background:linear-gradient(180deg,rgba(30,70,53,.94),rgba(9,26,19,.94));
+    border:1.5px solid rgba(255,231,154,.36);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 8px 20px -8px rgba(0,0,0,.7);}
+  .card-hud .n{font-size:9px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;
+               color:#A6CFB4;}
+  .card-hud .t{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:22px;line-height:1.15;
+               margin:2px 0 6px;}
+  .card-hud .r{display:flex;gap:14px;font-size:10px;font-weight:900;letter-spacing:.1em;
+               text-transform:uppercase;color:#A6CFB4;}
+  .card-hud .r b{display:block;font-family:"Baloo 2",sans-serif;font-size:16px;letter-spacing:0;
+                 text-transform:none;color:#F2FBF4;font-variant-numeric:tabular-nums;}
+  .card-hud .r .w b{color:var(--gold);}
+
+  .picker{display:flex;flex-wrap:wrap;gap:9px;padding:14px 16px;background:var(--card-2);
+          border-top:1px solid var(--line);}
+  .pick{
+    font-family:"Baloo 2",sans-serif;font-weight:700;font-size:13px;cursor:pointer;
+    border-radius:13px;padding:9px 14px;color:#DCEEE1;
+    background:linear-gradient(180deg,#1C4132,#0B1F16);
+    border:1.5px solid rgba(255,255,255,.14);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16), 0 3px 8px -3px rgba(0,0,0,.6);
+    transition:transform .12s ease;
+  }
+  .pick:hover{transform:translateY(-1px);}
+  .pick:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+  .pick[aria-pressed="true"]{
+    color:#3E2A05;background:linear-gradient(180deg,#FFE79A,#FFC93C 48%,#E09A14);
+    border-color:#8E5D12;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.75), 0 0 16px rgba(255,201,60,.5);}
+
+  /* ---------- the nine ---------- */
+  h2.sec{font-size:10.5px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;
+         color:var(--muted);margin:0 0 14px;}
+  .nine{border:1px solid var(--line);border-radius:20px;overflow:hidden;}
+  .row{display:grid;grid-template-columns:34px 1fr auto;gap:14px;align-items:center;
+       padding:13px 18px;border-bottom:1px solid var(--line);background:var(--card);}
+  .row:last-child{border-bottom:0;}
+  .row.head{background:var(--card-2);font-size:9.5px;font-weight:900;letter-spacing:.15em;
+            text-transform:uppercase;color:var(--muted);padding:10px 18px;}
+  .r-no{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:14px;color:var(--hoof);
+        font-variant-numeric:tabular-nums;}
+  .r-name{font-family:"Baloo 2",sans-serif;font-weight:700;font-size:16.5px;line-height:1.2;}
+  .r-hook{font-size:13px;color:var(--muted);line-height:1.45;margin-top:2px;}
+  .r-hook b{color:var(--ink);font-weight:700;}
+  .r-nums{display:flex;gap:16px;text-align:right;font-size:9.5px;font-weight:900;
+          letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  .r-nums b{display:block;font-family:"Baloo 2",sans-serif;font-size:16px;letter-spacing:0;
+            text-transform:none;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .r-nums .w b{color:var(--gold);}
+  @media (max-width:620px){
+    .row{grid-template-columns:28px 1fr;}
+    .r-nums{grid-column:1 / -1;justify-content:flex-start;text-align:left;padding-top:4px;}
+    .row.head{display:none;}
+  }
+
+  .foot{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);
+        font-size:13px;line-height:1.68;color:var(--muted);max-width:74ch;}
+  .foot b{color:var(--ink);font-weight:700;}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div>
+      <div class="eyebrow">Hoofers · Course 1 · front nine</div>
+      <h1>Cul-de-sac Country Club</h1>
+    </div>
+    <div class="totals">
+      <div class="tot"><span class="k">Par</span><span class="v">38</span></div>
+      <div class="tot"><span class="k">Plays</span><span class="v">2,840<em>yd</em></span></div>
+      <div class="tot hot"><span class="k">You walk</span><span class="v">1,217<em>ft</em></span></div>
+    </div>
+  </header>
+
+  <section class="fix">
+    <h2>Correcting the record</h2>
+    <p>The hole shape has <b>nothing</b> to do with where you physically walk. You walk wherever you want — round the block, up and down a hallway, on a treadmill. <b>The phone counts steps, not places.</b></p>
+    <p>Hole 9 does not loop back to your front door. It loops in the game world, on a screen, while you walk anywhere at all. That was my mistake, twice over, and it's out of the design.</p>
+  </section>
+
+  <div class="viewer">
+    <div class="canvas-wrap">
+      <canvas id="gl"></canvas>
+      <div class="grade"></div>
+      <div class="fallback" id="fallback">This preview renders in 3D and needs WebGL. Turn on hardware acceleration and the hole will fly by here.</div>
+      <div class="card-hud">
+        <div class="n" id="hNo">Hole 2</div>
+        <div class="t" id="hName">Hallway Hook</div>
+        <div class="r">
+          <span>Par<b id="hPar">3</b></span>
+          <span>Yards<b id="hYd">130</b></span>
+          <span class="w">You walk<b id="hWalk">56 ft</b></span>
+        </div>
+      </div>
+    </div>
+    <div class="picker" id="picker" role="group" aria-label="Choose a hole to preview"></div>
+  </div>
+
+  <h2 class="sec">The front nine</h2>
+  <div class="nine">
+    <div class="row head"><span></span><span>Hole</span><span>Par · Yards · Walk</span></div>
+
+    <div class="row">
+      <span class="r-no">01</span>
+      <div><div class="r-name">The Rug</div><div class="r-hook">A lazy bend, short enough to be a joke. <b>Six steps and the game pays you.</b></div></div>
+      <div class="r-nums"><span>Par<b>3</b></span><span>Yd<b>70</b></span><span class="w">Walk<b>30 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">02</span>
+      <div><div class="r-name">Hallway Hook</div><div class="r-hook">Hard left at the corner. <b>You can't see the green from the tee.</b></div></div>
+      <div class="r-nums"><span>Par<b>3</b></span><span>Yd<b>130</b></span><span class="w">Walk<b>56 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">03</span>
+      <div><div class="r-name">The Coffee Table</div><div class="r-hook">Water straight through the middle. Over it, or the thin lane round the side. <b>Shop unlocks.</b></div></div>
+      <div class="r-nums"><span>Par<b>3</b></span><span>Yd<b>190</b></span><span class="w">Walk<b>81 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">04</span>
+      <div><div class="r-name">Sofa Bend</div><div class="r-hook">Left then right. <b>A bad first shot costs you extra walking.</b></div></div>
+      <div class="r-nums"><span>Par<b>4</b></span><span>Yd<b>260</b></span><span class="w">Walk<b>111 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">05</span>
+      <div><div class="r-name">Kitchen Island</div><div class="r-hook">Green ringed by water, no bail-out. <b>The first hole with teeth.</b></div></div>
+      <div class="r-nums"><span>Par<b>4</b></span><span>Yd<b>350</b></span><span class="w">Walk<b>150 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">06</span>
+      <div><div class="r-name">The Fork</div><div class="r-hook">Two fairways. The narrow one over the creek <b>saves 70 feet of walking.</b></div></div>
+      <div class="r-nums"><span>Par<b>5</b></span><span>Yd<b>440</b></span><span class="w">Walk<b>189 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">07</span>
+      <div><div class="r-name">Horseshoe</div><div class="r-hook">Bends the whole way round a pond. <b>Dare the carry, or hoof it round.</b></div></div>
+      <div class="r-nums"><span>Par<b>5</b></span><span>Yd<b>520</b></span><span class="w">Walk<b>223 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">08</span>
+      <div><div class="r-name">Driveway Drop</div><div class="r-hook">Downhill into a bowl green that <b>funnels anything close.</b></div></div>
+      <div class="r-nums"><span>Par<b>5</b></span><span>Yd<b>600</b></span><span class="w">Walk<b>257 ft</b></span></div>
+    </div>
+
+    <div class="row">
+      <span class="r-no">09</span>
+      <div><div class="r-name">The Cul-de-sac</div><div class="r-hook">A full loop in the game world, greens and tee side by side. <b>Longest hole on the course.</b></div></div>
+      <div class="r-nums"><span>Par<b>6</b></span><span>Yd<b>680</b></span><span class="w">Walk<b>291 ft</b></span></div>
+    </div>
+  </div>
+
+  <p class="foot"><b>Why the holes bend.</b> In other golf games, cutting the corner buys you strokes. In Hoofers it buys you footsteps — carry the pond on 7 and you walk 140 feet instead of 223. A straight hole can't offer that deal, which is the real reason none of these are straight.</p>
+  <p class="foot"><b>Still a blockout.</b> Untextured geometry, no art pass. The shapes are the point here, not the finish.</p>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('gl');
+  if (typeof THREE === 'undefined'){ document.getElementById('fallback').classList.add('on'); return; }
+  var renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true }); }
+  catch(e){ document.getElementById('fallback').classList.add('on'); return; }
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+
+  var scene = new THREE.Scene();
+  var sc = document.createElement('canvas'); sc.width = 4; sc.height = 320;
+  var sg = sc.getContext('2d');
+  var gd = sg.createLinearGradient(0, 0, 0, 320);
+  gd.addColorStop(0, '#1E86C8'); gd.addColorStop(.45, '#5CB8E4');
+  gd.addColorStop(.8, '#A9DCEF'); gd.addColorStop(1, '#DCF0F0');
+  sg.fillStyle = gd; sg.fillRect(0, 0, 4, 320);
+  var skyTex = new THREE.CanvasTexture(sc); skyTex.encoding = THREE.sRGBEncoding;
+  scene.background = skyTex;
+  scene.fog = new THREE.Fog(0xBEDFEA, 90, 420);
+
+  var camera = new THREE.PerspectiveCamera(48, 1.6, 0.1, 900);
+
+  var sun = new THREE.DirectionalLight(0xFFF1C9, 2.5);
+  sun.position.set(70, 96, 60); sun.castShadow = true;
+  sun.shadow.mapSize.width = 2048; sun.shadow.mapSize.height = 2048;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 420;
+  sun.shadow.camera.left = -150; sun.shadow.camera.right = 150;
+  sun.shadow.camera.top = 150; sun.shadow.camera.bottom = -150;
+  sun.shadow.bias = -0.0011; sun.shadow.radius = 3;
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0xA9DCEF, 0x3F7C34, 0.85));
+  scene.add(new THREE.AmbientLight(0xFFE9C0, 0.2));
+  var rim = new THREE.DirectionalLight(0xBFE3FF, 0.8);
+  rim.position.set(-60, 40, -90); scene.add(rim);
+
+  function mat(hex, r){ return new THREE.MeshStandardMaterial({ color: hex, roughness: r === undefined ? 0.94 : r, metalness: 0 }); }
+
+  var M = {
+    rough: mat(0x2C7233), rough2: mat(0x235C2C), fair: mat(0x6FC947, 0.95),
+    secondCut: mat(0x4E9C36, 0.96), green: mat(0x95E566, 0.9),
+    sand: mat(0xF0DCA6, 1), water: new THREE.MeshStandardMaterial({ color: 0x2C87CC, roughness: 0.12, metalness: 0.25 }),
+    bark: mat(0x6A4527, 1), leafA: mat(0x2C6E33, 1), leafB: mat(0x3E9440, 1), leafC: mat(0x53AC4C, 1),
+    white: mat(0xF0F4F0, 0.6), flag: mat(0xE0342B, 0.85), cup: mat(0x14210F, 1)
+  };
+
+  // base ground
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), M.rough);
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+  var holeGroup = new THREE.Group();
+  scene.add(holeGroup);
+
+  function clearGroup(g){
+    while (g.children.length){
+      var c = g.children.pop();
+      if (c.geometry) c.geometry.dispose();
+    }
+  }
+
+  // ribbon along a curve => any hole shape, no straight lines required
+  function ribbon(curve, halfW, segs){
+    var pos = [], idx = [];
+    for (var i = 0; i <= segs; i++){
+      var t = i / segs;
+      var p = curve.getPointAt(t), tg = curve.getTangentAt(t);
+      var nx = -tg.z, nz = tg.x;
+      var l = Math.hypot(nx, nz) || 1;
+      nx /= l; nz /= l;
+      pos.push(p.x + nx * halfW, 0, p.z + nz * halfW);
+      pos.push(p.x - nx * halfW, 0, p.z - nz * halfW);
+    }
+    for (var j = 0; j < segs; j++){
+      var a = j * 2, b = a + 1, c = a + 2, d = a + 3;
+      idx.push(a, c, b, b, c, d);
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function curveFrom(pts){
+    var v = [];
+    for (var i = 0; i < pts.length; i++) v.push(new THREE.Vector3(pts[i][0], 0, pts[i][1]));
+    return new THREE.CatmullRomCurve3(v, false, 'catmullrom', 0.5);
+  }
+
+  function tree(x, z, s, g){
+    var t = new THREE.Group();
+    var tr = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.68, 5, 7), M.bark);
+    tr.position.y = 2.5; tr.castShadow = true; t.add(tr);
+    var a = new THREE.Mesh(new THREE.SphereGeometry(3.6, 11, 9), M.leafA);
+    a.position.y = 6.6; a.castShadow = true; t.add(a);
+    var b = new THREE.Mesh(new THREE.SphereGeometry(2.7, 10, 8), M.leafB);
+    b.position.set(1.4, 8.2, 0.7); b.castShadow = true; t.add(b);
+    var c = new THREE.Mesh(new THREE.SphereGeometry(1.9, 9, 7), M.leafC);
+    c.position.set(-1.2, 8.9, -0.6); c.castShadow = true; t.add(c);
+    t.position.set(x, 0, z); t.scale.setScalar(s); g.add(t);
+  }
+
+  var seed = 7;
+  function rnd(){ seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+
+  var HOLES = [
+    { no: 2, name: 'Hallway Hook', par: 3, yd: 130, walk: '56 ft',
+      w: 13,
+      paths: [[[0,0],[1,-26],[-2,-52],[-14,-70],[-38,-78],[-64,-80],[-88,-78]]],
+      green: [-96,-77], greenR: 11,
+      sand: [[-40,-64,7],[-72,-90,6]],
+      water: [] },
+
+    { no: 5, name: 'Kitchen Island', par: 4, yd: 350, walk: '150 ft',
+      w: 15,
+      paths: [[[0,0],[4,-30],[2,-62],[-6,-92],[-6,-118]]],
+      green: [-6,-150], greenR: 12,
+      sand: [[16,-56,8]],
+      water: [[-6,-150,30]] },
+
+    { no: 6, name: 'The Fork', par: 5, yd: 440, walk: '189 ft',
+      w: 14,
+      paths: [
+        [[0,0],[2,-24],[0,-46]],
+        [[0,-46],[10,-70],[26,-92],[44,-112],[54,-136]],
+        [[0,-46],[-22,-64],[-36,-90],[-30,-118],[-8,-136],[26,-142],[50,-140]]
+      ],
+      green: [56,-142], greenR: 11,
+      sand: [[34,-124,7]],
+      water: [[4,-84,17]] },
+
+    { no: 7, name: 'Horseshoe', par: 5, yd: 520, walk: '223 ft',
+      w: 14,
+      paths: [[[0,0],[-14,-24],[-24,-52],[-20,-84],[0,-108],[32,-118],[64,-108],[80,-84],[80,-54],[70,-28]]],
+      green: [66,-18], greenR: 11,
+      sand: [[-30,-70,7],[54,-100,7]],
+      water: [[28,-72,26]] }
+  ];
+
+  var current = null;
+  var flyCurve = null;
+  var flyLen = 0;
+
+  function build(h){
+    clearGroup(holeGroup);
+    seed = 7 + h.no * 31;
+
+    var curves = [];
+    for (var p = 0; p < h.paths.length; p++){
+      var cv = curveFrom(h.paths[p]);
+      curves.push(cv);
+      var cut = new THREE.Mesh(ribbon(cv, h.w + 5, 160), M.secondCut);
+      cut.position.y = 0.03; cut.receiveShadow = true; holeGroup.add(cut);
+      var fw = new THREE.Mesh(ribbon(cv, h.w, 160), M.fair);
+      fw.position.y = 0.07; fw.receiveShadow = true; holeGroup.add(fw);
+    }
+
+    // water first so the green can sit on it
+    for (var wi = 0; wi < h.water.length; wi++){
+      var wd = h.water[wi];
+      var wm = new THREE.Mesh(new THREE.CircleGeometry(wd[2], 44), M.water);
+      wm.rotation.x = -Math.PI / 2; wm.position.set(wd[0], 0.1, wd[1]);
+      holeGroup.add(wm);
+      var lip = new THREE.Mesh(new THREE.RingGeometry(wd[2], wd[2] + 2.4, 44), M.sand);
+      lip.rotation.x = -Math.PI / 2; lip.position.set(wd[0], 0.09, wd[1]);
+      holeGroup.add(lip);
+    }
+
+    for (var si = 0; si < h.sand.length; si++){
+      var sd = h.sand[si];
+      var sm = new THREE.Mesh(new THREE.CircleGeometry(sd[2], 26), M.sand);
+      sm.rotation.x = -Math.PI / 2; sm.position.set(sd[0], 0.12, sd[1]);
+      sm.receiveShadow = true; holeGroup.add(sm);
+    }
+
+    // green, cup, flag
+    var gm = new THREE.Mesh(new THREE.CylinderGeometry(h.greenR, h.greenR + 1.2, 0.7, 44), M.green);
+    gm.position.set(h.green[0], 0.35, h.green[1]);
+    gm.receiveShadow = true; gm.castShadow = true; holeGroup.add(gm);
+    var cupM = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.3, 16), M.cup);
+    cupM.position.set(h.green[0], 0.72, h.green[1]); holeGroup.add(cupM);
+    var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 9, 8), M.white);
+    pole.position.set(h.green[0], 5.2, h.green[1]); pole.castShadow = true; holeGroup.add(pole);
+    var cloth = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2), new THREE.MeshStandardMaterial({
+      color: 0xE0342B, roughness: 0.9, side: THREE.DoubleSide }));
+    cloth.position.set(h.green[0] + 1.7, 8.6, h.green[1]); cloth.castShadow = true;
+    holeGroup.add(cloth); holeGroup.userData = { cloth: cloth };
+
+    // tee box
+    var teeM = new THREE.Mesh(new THREE.BoxGeometry(9, 0.6, 7), M.green);
+    teeM.position.set(h.paths[0][0][0], 0.3, h.paths[0][0][1] + 3);
+    teeM.receiveShadow = true; teeM.castShadow = true; holeGroup.add(teeM);
+
+    // trees hugging the outside of every curve — this is what makes a dogleg read
+    for (var ci = 0; ci < curves.length; ci++){
+      var cc = curves[ci];
+      for (var k = 0; k <= 26; k++){
+        var t = k / 26;
+        var pt = cc.getPointAt(t), tg = cc.getTangentAt(t);
+        var nx = -tg.z, nz = tg.x, l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+        for (var side = -1; side <= 1; side += 2){
+          if (rnd() > 0.72) continue;
+          var off = h.w + 9 + rnd() * 20;
+          var tx = pt.x + nx * off * side, tz = pt.z + nz * off * side;
+          var near = false;
+          for (var wj = 0; wj < h.water.length; wj++){
+            if (Math.hypot(tx - h.water[wj][0], tz - h.water[wj][1]) < h.water[wj][2] + 5) near = true;
+          }
+          if (Math.hypot(tx - h.green[0], tz - h.green[1]) < h.greenR + 8) near = true;
+          if (!near) tree(tx, tz, 0.85 + rnd() * 0.75, holeGroup);
+        }
+      }
+    }
+
+    // the flyover follows the longest path
+    var best = curves[0], bestLen = curves[0].getLength();
+    for (var q = 1; q < curves.length; q++){
+      var ln = curves[q].getLength();
+      if (ln > bestLen){ bestLen = ln; best = curves[q]; }
+    }
+    flyCurve = best; flyLen = bestLen;
+    current = h;
+
+    document.getElementById('hNo').textContent = 'Hole ' + h.no;
+    document.getElementById('hName').textContent = h.name;
+    document.getElementById('hPar').textContent = h.par;
+    document.getElementById('hYd').textContent = h.yd;
+    document.getElementById('hWalk').textContent = h.walk;
+  }
+
+  // picker
+  var picker = document.getElementById('picker');
+  var buttons = [];
+  HOLES.forEach(function(h, i){
+    var b = document.createElement('button');
+    b.className = 'pick'; b.type = 'button';
+    b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+    b.textContent = h.no + ' · ' + h.name;
+    b.addEventListener('click', function(){
+      buttons.forEach(function(x){ x.setAttribute('aria-pressed', 'false'); });
+      b.setAttribute('aria-pressed', 'true');
+      build(h); start = null;
+    });
+    buttons.push(b); picker.appendChild(b);
+  });
+
+  build(HOLES[0]);
+
+  var look = new THREE.Vector3(), pos = new THREE.Vector3();
+  var DUR = 13;
+
+  function frame(t){
+    var u = (t % DUR) / DUR;
+    var e = u < 0.86 ? u / 0.86 : 1;
+    var ahead = Math.min(e + 0.09, 1);
+    var p = flyCurve.getPointAt(e), a = flyCurve.getPointAt(ahead);
+    var climb = 15 + Math.sin(e * Math.PI) * 9;
+    pos.set(p.x, climb, p.z + 26 - e * 4);
+    look.set(a.x, 2.2, a.z - 12);
+    if (u >= 0.86){
+      var h2 = (u - 0.86) / 0.14;
+      pos.set(current.green[0] + 26 - h2 * 8, 17 - h2 * 3, current.green[1] + 34 - h2 * 6);
+      look.set(current.green[0], 3, current.green[1]);
+    }
+    camera.position.copy(pos);
+    camera.lookAt(look);
+    if (holeGroup.userData.cloth) holeGroup.userData.cloth.rotation.y = Math.sin(t * 2.2) * 0.4;
+  }
+
+  function resize(){
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    if (canvas.width !== w || canvas.height !== h){
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+  }
+
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var start = null;
+  function loop(now){
+    if (start === null) start = now;
+    resize(); frame((now - start) / 1000);
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+  if (reduce){
+    resize(); frame(4); renderer.render(scene, camera);
+    window.addEventListener('resize', function(){ resize(); frame(4); renderer.render(scene, camera); });
+  } else {
+    requestAnimationFrame(loop);
+  }
+})();
+</script>

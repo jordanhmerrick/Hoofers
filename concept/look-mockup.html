@@ -1,0 +1,935 @@
+<title>Hoofers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;900&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --board:#0B1512; --board-2:#13211C; --board-line:#22362C;
+    --board-text:#EAF3ED; --board-muted:#8FA99A;
+    --gold:#FFC93C; --gold-lite:#FFE79A; --gold-dark:#B8791A;
+    --hoof:#FF7A2F; --ink:#0E1F17;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --board:#0B1512; --board-2:#13211C; --board-line:#22362C;
+      --board-text:#EAF3ED; --board-muted:#8FA99A;
+    }
+  }
+  :root[data-theme="dark"]{
+    --board:#0B1512; --board-2:#13211C; --board-line:#22362C;
+    --board-text:#EAF3ED; --board-muted:#8FA99A;
+  }
+  :root[data-theme="light"]{
+    --board:#E7EFE9; --board-2:#FFFFFF; --board-line:#CFDFD3;
+    --board-text:#0E1F17; --board-muted:#546D5F;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --board:#E7EFE9; --board-2:#FFFFFF; --board-line:#CFDFD3;
+      --board-text:#0E1F17; --board-muted:#546D5F;
+    }
+  }
+
+  body{background:var(--board);color:var(--board-text);
+       font-family:"Nunito",ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:44px 24px 60px;}
+
+  .mast{display:flex;flex-direction:column;gap:14px;margin-bottom:34px;}
+  .eyebrow{font-size:11px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;color:var(--hoof);}
+  h1{
+    font-family:"Baloo 2",ui-rounded,system-ui,sans-serif;font-weight:800;
+    font-size:clamp(50px,9vw,92px);line-height:1;margin:0;letter-spacing:-.01em;
+    background:linear-gradient(180deg,#FFE79A 0%,#FFC93C 52%,#E39514 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 3px 0 rgba(0,0,0,.4));
+  }
+  .deck{font-size:17px;line-height:1.6;max-width:58ch;color:var(--board-muted);margin:0;}
+  .deck b{color:var(--board-text);font-weight:700;}
+
+  .stage{display:grid;gap:40px;grid-template-columns:minmax(280px,340px) 1fr;align-items:start;}
+  @media (max-width:760px){.stage{grid-template-columns:1fr;}}
+
+  .phone{
+    position:relative;width:100%;max-width:340px;aspect-ratio:340/716;
+    border-radius:44px;padding:10px;
+    background:linear-gradient(160deg,#3D4E46,#0A0F0D 55%);
+    box-shadow:0 0 0 1px #48594F, 0 34px 70px -22px rgba(0,0,0,.85);
+  }
+  .screen{position:relative;width:100%;height:100%;border-radius:35px;overflow:hidden;background:#7EC8E6;}
+  .notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);
+         width:86px;height:23px;border-radius:999px;background:#0A0F0D;z-index:9;}
+  #gl{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  /* colour grade: warm sun bloom in the corner, soft vignette at the edges */
+  .grade{position:absolute;inset:0;z-index:3;pointer-events:none;
+    background:
+      radial-gradient(60% 34% at 82% 12%, rgba(255,236,170,.42), rgba(255,236,170,0) 70%),
+      radial-gradient(120% 78% at 50% 42%, rgba(0,0,0,0) 52%, rgba(6,28,20,.34) 100%);
+    mix-blend-mode:normal;}
+  .fallback{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    padding:26px;text-align:center;font-size:14px;line-height:1.55;color:#0E1F17;
+    background:linear-gradient(180deg,#A8DFF2,#8FD558);
+  }
+  .fallback.on{display:flex;}
+
+  /* ---------- HUD ---------- */
+  .hud{position:absolute;inset:0;z-index:5;pointer-events:none;
+       display:flex;flex-direction:column;justify-content:space-between;padding:40px 14px 17px;}
+  .hud-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .plate{
+    border-radius:15px;padding:8px 13px;line-height:1.2;color:#F2FBF4;
+    background:linear-gradient(180deg,#1E4635 0%,#0C2118 100%);
+    border:1.5px solid rgba(255,231,154,.36);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.24), 0 5px 12px -4px rgba(0,0,0,.6);
+  }
+  .plate .sub{display:block;font-size:8.5px;font-weight:900;letter-spacing:.13em;
+              text-transform:uppercase;color:#9FCBAE;margin-bottom:1px;}
+  .plate .val{font-family:"Baloo 2",sans-serif;font-weight:700;font-size:13.5px;}
+  .plate.coin{display:flex;align-items:center;gap:7px;
+    background:linear-gradient(180deg,#FFE79A 0%,#FFC93C 45%,#DE9612 100%);
+    border-color:#8E5D12;color:#4A2E05;}
+  .plate.coin .val{font-size:16px;font-variant-numeric:tabular-nums;}
+  .plate.coin .sub{color:#7A5210;margin:0;}
+
+  .hud-bot{display:flex;flex-direction:column;gap:12px;}
+  .power{position:relative;height:14px;border-radius:999px;margin:0 24px;overflow:hidden;
+    background:linear-gradient(180deg,#0A2018,#123227);
+    border:1.5px solid rgba(255,231,154,.3);box-shadow:inset 0 2px 5px rgba(0,0,0,.65);}
+  .power i{display:block;height:100%;border-radius:999px;
+    background:linear-gradient(180deg,#FFE79A,#FFB020 55%,#F0761A);
+    box-shadow:0 0 14px rgba(255,176,32,.6);transition:width .12s linear;}
+  .prompt{text-align:center;font-family:"Baloo 2",sans-serif;font-weight:700;font-size:14px;
+          color:#fff;text-shadow:0 2px 0 rgba(8,30,20,.65), 0 5px 14px rgba(0,0,0,.55);}
+  .prompt span{color:var(--gold-lite);}
+  .clubs{display:flex;gap:7px;justify-content:center;}
+  .club{border-radius:13px;padding:8px 11px;font-family:"Baloo 2",sans-serif;
+    font-weight:700;font-size:12px;color:#DCEEE1;
+    background:linear-gradient(180deg,#1C4132 0%,#0B1F16 100%);
+    border:1.5px solid rgba(255,255,255,.15);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.17), 0 3px 8px -2px rgba(0,0,0,.6);}
+  .club.on{color:#4A2E05;
+    background:linear-gradient(180deg,#FFE79A 0%,#FFC93C 48%,#E09A14 100%);
+    border-color:#8E5D12;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.75), 0 0 18px rgba(255,201,60,.55), 0 3px 9px -2px rgba(0,0,0,.55);}
+
+  .meter{position:absolute;left:0;right:0;top:38%;z-index:6;text-align:center;}
+  .meter-num{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:76px;line-height:.96;
+    font-variant-numeric:tabular-nums;letter-spacing:-.015em;
+    background:linear-gradient(180deg,#FFFFFF 0%,#FFF0BE 48%,#FFC93C 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 3px 0 rgba(10,40,26,.6)) drop-shadow(0 10px 20px rgba(0,0,0,.45));}
+  .meter-unit{font-family:"Baloo 2",sans-serif;font-weight:700;font-size:14px;color:#fff;
+    letter-spacing:.26em;text-transform:uppercase;text-shadow:0 2px 0 rgba(10,40,26,.65);}
+  .meter-tag{display:inline-block;margin-top:12px;padding:6px 14px;border-radius:999px;
+    font-family:"Baloo 2",sans-serif;font-weight:700;font-size:12px;color:#4A2E05;
+    background:linear-gradient(180deg,#FFE79A,#FFC93C 50%,#E09A14);border:1.5px solid #8E5D12;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 6px 16px -5px rgba(0,0,0,.65);}
+
+  .walkcard{position:absolute;left:12px;right:12px;bottom:14px;z-index:6;
+    border-radius:24px;padding:15px 16px;display:flex;gap:14px;align-items:center;
+    background:linear-gradient(180deg,#FFFFFF 0%,#EEF6EF 100%);
+    border:1.5px solid rgba(12,40,26,.15);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 18px 36px -15px rgba(6,22,14,.8);}
+  .ring{position:relative;width:66px;height:66px;flex:none;}
+  .ring svg{width:100%;height:100%;transform:rotate(-90deg);}
+  .ring-mid{position:absolute;inset:0;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;line-height:1;}
+  .ring-mid b{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:19px;color:var(--ink);
+              font-variant-numeric:tabular-nums;}
+  .ring-mid span{font-size:8px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;
+                 color:#6B8272;margin-top:2px;}
+  .walk-copy{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .walk-copy .k{font-size:9px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--hoof);}
+  .walk-copy .v{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:21px;color:var(--ink);line-height:1.12;}
+  .walk-copy .m{font-size:11.5px;color:#5B7264;line-height:1.4;}
+  .walk-copy .m b{color:var(--ink);font-weight:700;}
+
+  .waiting{position:absolute;z-index:6;left:50%;top:30%;transform:translateX(-50%);
+    border-radius:15px;padding:7px 14px;white-space:nowrap;
+    font-family:"Baloo 2",sans-serif;font-weight:700;font-size:12.5px;color:#F2FBF4;
+    background:linear-gradient(180deg,#1E4635,#0C2118);
+    border:1.5px solid rgba(255,231,154,.36);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 7px 16px -6px rgba(0,0,0,.65);}
+  .waiting::after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-6px;
+    border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid #12291E;}
+
+  .fade{opacity:0;transition:opacity .35s ease;}
+  .fade.show{opacity:1;}
+
+  /* ---------- notes column ---------- */
+  .notes{display:flex;flex-direction:column;gap:28px;padding-top:6px;}
+  .lede{font-family:"Baloo 2",sans-serif;font-weight:700;font-size:23px;line-height:1.25;
+        margin:0;color:var(--board-text);text-wrap:balance;}
+  .beatlist{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:16px;
+            counter-reset:b;}
+  .beatlist li{display:grid;grid-template-columns:26px 1fr;gap:12px;align-items:start;}
+  .beatlist li::before{
+    counter-increment:b;content:counter(b,decimal-leading-zero);
+    font-family:"Baloo 2",sans-serif;font-weight:700;font-size:12px;color:var(--hoof);
+    padding-top:3px;font-variant-numeric:tabular-nums;
+  }
+  .beatlist h3{font-family:"Baloo 2",sans-serif;font-weight:700;font-size:16px;margin:0 0 3px;
+               color:var(--board-text);}
+  .beatlist p{margin:0;font-size:13.5px;line-height:1.55;color:var(--board-muted);}
+
+  .changed{border-top:1px solid var(--board-line);padding-top:22px;
+           display:flex;flex-direction:column;gap:11px;}
+  .changed h2{font-size:10.5px;font-weight:900;letter-spacing:.2em;text-transform:uppercase;
+              color:var(--board-muted);margin:0 0 3px;}
+  .changed ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px;}
+  .changed li{font-size:13.5px;line-height:1.5;color:var(--board-muted);position:relative;padding-left:17px;}
+  .changed li::before{content:"";position:absolute;left:0;top:8px;width:7px;height:7px;border-radius:50%;
+                      background:linear-gradient(180deg,#FFD98A,#F0761A);}
+  .changed li b{color:var(--board-text);font-weight:800;}
+
+  .foot{margin-top:38px;padding-top:22px;border-top:1px solid var(--board-line);
+        font-size:12.5px;color:var(--board-muted);line-height:1.65;max-width:70ch;}
+  .foot b{color:var(--board-text);font-weight:700;}
+</style>
+
+<div class="wrap">
+
+  <header class="mast">
+    <div class="eyebrow">Concept mockup · take four · set dressing pass</div>
+    <h1>Hoofers</h1>
+    <p class="deck">Bright cartoon golf you play on your feet. Swing, watch it fly, then <b>walk to your own ball</b> — the little guy on screen gets there first and waits for you to catch up.</p>
+  </header>
+
+  <div class="stage">
+
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen">
+        <canvas id="gl"></canvas>
+        <div class="fallback" id="fallback">3D preview needs WebGL. Open this on a browser with hardware acceleration on and the course will render here.</div>
+        <div class="grade"></div>
+
+        <div class="hud">
+          <div class="hud-top">
+            <div class="plate"><span class="sub">Hole 3 · Par 4</span><span class="val" id="plateVal">Cul-de-sac Carry</span></div>
+            <div class="plate coin"><span class="val">7</span><span class="sub">Trophies</span></div>
+          </div>
+          <div class="hud-bot fade show" id="aimHud">
+            <div class="power"><i id="powerFill" style="width:22%"></i></div>
+            <div class="prompt">Pull back to swing <span>· or swing your phone</span></div>
+            <div class="clubs">
+              <div class="club">Wedge</div>
+              <div class="club">7-iron</div>
+              <div class="club on">Driver</div>
+              <div class="club">Putter</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="meter fade" id="meterHud">
+          <div class="meter-num" id="tick">0</div>
+          <div class="meter-unit">Yards</div>
+          <div class="meter-tag">Sweet contact</div>
+        </div>
+
+        <div class="waiting fade" id="waitTag">He got there first.</div>
+
+        <div class="walkcard fade" id="walkHud">
+          <div class="ring">
+            <svg viewBox="0 0 68 68" aria-hidden="true">
+              <defs>
+                <linearGradient id="ringgrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#FFC93C"/><stop offset="1" stop-color="#FF7A2F"/>
+                </linearGradient>
+              </defs>
+              <circle cx="34" cy="34" r="29" fill="none" stroke="#D9E6DB" stroke-width="8"/>
+              <circle id="ringArc" cx="34" cy="34" r="29" fill="none" stroke="url(#ringgrad)"
+                      stroke-width="8" stroke-linecap="round"
+                      stroke-dasharray="182" stroke-dashoffset="182"/>
+            </svg>
+            <div class="ring-mid"><b id="ringNum">0</b><span>of 92</span></div>
+          </div>
+          <div class="walk-copy">
+            <div class="k">Your turn</div>
+            <div class="v">Walk 92 ft</div>
+            <div class="m">218 yd carry at 1:7 · <b>Hoof Bonus</b> shaved 15 ft off this one.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <p class="lede">Yes, more detail comes. This pass added the dressing — flowers, tufts, rocks, a fence, a path, rooftops past the trees, a bag on his back. Two bigger passes come after it.</p>
+
+      <ol class="beatlist">
+        <li>
+          <div>
+            <h3>Line it up</h3>
+            <p>Camera sits behind your golfer. Driver in hand, power meter filling, the flag waiting out there in the haze.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Watch it fly</h3>
+            <p>The ball carries, the camera follows it, and the yardage runs up in gold. That number is the trophy moment.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Now you walk</h3>
+            <p>He hoofs it down the fairway and stands at the ball with the cow, waiting. Then the card gives you your number: 92 feet, and 38 of them are done.</p>
+          </div>
+        </li>
+      </ol>
+
+      <div class="changed">
+        <h2>Where detail comes from</h2>
+        <ul>
+          <li><b>Set dressing</b> — grass tufts, wildflowers, rocks, bushes, a fence, a walking path, tee markers, a sign, rooftops out past the trees. Added here, and it's the cheapest richness there is.</li>
+          <li><b>Modeling and texture</b> — the next pass, and the big one. Real characters with faces and cloth instead of my spheres, wood grain on the fence, grass that looks like grass.</li>
+          <li><b>Post-processing</b> — bloom on the sun, ambient occlusion in the creases, a depth blur on the far hills, a colour grade over everything. That layer alone is most of the Royal Match gloss.</li>
+          <li><b>Animation polish</b> — weight in the swing, squash on the bounce, the cow's ears reacting. Motion is half of why those games feel expensive.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot"><b>Still a mockup, and still a blockout.</b> Every shape here is a sphere, box or cylinder I assembled by hand — no sculpted models, no textures, no post. That's exactly why it reads generic: generic shapes. The detail passes above are where a game stops looking like a placeholder, and they happen after the design is settled, not before. <b>Nothing here is a decision.</b></p>
+</div>
+
+<script>
+(function(){
+  var canvas = document.getElementById('gl');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (typeof THREE === 'undefined') { document.getElementById('fallback').classList.add('on'); return; }
+
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
+  } catch (e) {
+    document.getElementById('fallback').classList.add('on'); return;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+
+  var scene = new THREE.Scene();
+
+  // --- sky ---
+  var sc = document.createElement('canvas'); sc.width = 4; sc.height = 320;
+  var sg = sc.getContext('2d');
+  var grad = sg.createLinearGradient(0, 0, 0, 320);
+  grad.addColorStop(0.00, '#1E86C8');
+  grad.addColorStop(0.45, '#5CB8E4');
+  grad.addColorStop(0.78, '#A9DCEF');
+  grad.addColorStop(1.00, '#D9EFF0');
+  sg.fillStyle = grad; sg.fillRect(0, 0, 4, 320);
+  var skyTex = new THREE.CanvasTexture(sc);
+  skyTex.encoding = THREE.sRGBEncoding;
+  scene.background = skyTex;
+  scene.fog = new THREE.Fog(0xBBDFEA, 55, 235);
+
+  var camera = new THREE.PerspectiveCamera(46, 1, 0.1, 600);
+
+  // --- light ---
+  var sun = new THREE.DirectionalLight(0xFFF1C9, 2.5);
+  sun.position.set(26, 40, 22);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 1024; sun.shadow.mapSize.height = 1024;
+  sun.shadow.camera.near = 1; sun.shadow.camera.far = 160;
+  sun.shadow.camera.left = -45; sun.shadow.camera.right = 45;
+  sun.shadow.camera.top = 45; sun.shadow.camera.bottom = -45;
+  sun.shadow.bias = -0.0012;
+  sun.shadow.radius = 3;
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0xA9DCEF, 0x3F7C34, 0.85));
+  scene.add(new THREE.AmbientLight(0xFFE9C0, 0.22));
+
+  function mat(hex, rough){
+    return new THREE.MeshStandardMaterial({ color: hex, roughness: rough === undefined ? 0.92 : rough, metalness: 0 });
+  }
+
+  // --- ground ---
+  var rough = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), mat(0x2F7A32));
+  rough.rotation.x = -Math.PI / 2; rough.receiveShadow = true; scene.add(rough);
+
+  var fairway = new THREE.Mesh(new THREE.PlaneGeometry(17, 150), mat(0x69C043, 0.95));
+  fairway.rotation.x = -Math.PI / 2;
+  fairway.position.set(0, 0.02, -55);
+  fairway.receiveShadow = true; scene.add(fairway);
+
+  // mown bands
+  for (var b = 0; b < 9; b++){
+    var band = new THREE.Mesh(new THREE.PlaneGeometry(17, 8), mat(b % 2 ? 0x74CC4B : 0x5FB23B, 0.95));
+    band.rotation.x = -Math.PI / 2;
+    band.position.set(0, 0.03, -8 - b * 15);
+    band.receiveShadow = true; scene.add(band);
+  }
+
+  // green
+  var green = new THREE.Mesh(new THREE.CircleGeometry(9, 40), mat(0x8FDD5A, 0.95));
+  green.rotation.x = -Math.PI / 2; green.position.set(0, 0.05, -104);
+  green.receiveShadow = true; scene.add(green);
+
+  // bunkers
+  function bunker(x, z, r){
+    var s = new THREE.Mesh(new THREE.CircleGeometry(r, 26), mat(0xF2DCA0, 1));
+    s.rotation.x = -Math.PI / 2; s.position.set(x, 0.06, z);
+    s.receiveShadow = true; scene.add(s);
+  }
+  bunker(11, -46, 4.6); bunker(-10.5, -74, 3.8); bunker(8, -96, 3.4);
+
+  // rolling hills far off
+  function hill(x, z, s, c){
+    var h = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), mat(c, 1));
+    h.position.set(x, -3, z); h.scale.set(s, s * 0.34, s * 0.8);
+    scene.add(h);
+  }
+  hill(-70, -190, 46, 0x63A85A); hill(48, -205, 54, 0x5C9E56); hill(6, -230, 62, 0x71B268);
+
+  // trees
+  function tree(x, z, s){
+    var g = new THREE.Group();
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.46, 3.4, 7), mat(0x6A4527, 1));
+    trunk.position.y = 1.7; trunk.castShadow = true; g.add(trunk);
+    var c1 = new THREE.Mesh(new THREE.SphereGeometry(2.5, 10, 8), mat(0x2C6E33, 1));
+    c1.position.set(0, 4.4, 0); c1.castShadow = true; g.add(c1);
+    var c2 = new THREE.Mesh(new THREE.SphereGeometry(1.9, 10, 8), mat(0x3E9440, 1));
+    c2.position.set(0.9, 5.5, 0.5); c2.castShadow = true; g.add(c2);
+    var c3 = new THREE.Mesh(new THREE.SphereGeometry(1.4, 9, 7), mat(0x4FA84A, 1));
+    c3.position.set(-0.8, 5.9, -0.4); c3.castShadow = true; g.add(c3);
+    g.position.set(x, 0, z); g.scale.setScalar(s);
+    scene.add(g);
+  }
+  var tz = [-18, -34, -52, -66, -84, -98, -118, -140];
+  for (var i = 0; i < tz.length; i++){
+    tree(-13 - (i % 3) * 3.2, tz[i], 1 + (i % 3) * 0.16);
+    tree(13 + ((i + 1) % 3) * 3.4, tz[i] - 7, 1.05 + ((i + 2) % 3) * 0.14);
+  }
+
+  // ---------- set dressing ----------
+  var seed = 20260904;
+  function rnd(){ seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; }
+
+  // rolling mounds so the ground isn't a table
+  function mound(x, z, rx, ry, rz, c){
+    var m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), mat(c, 1));
+    m.position.set(x, -ry * 0.62, z); m.scale.set(rx, ry, rz);
+    m.receiveShadow = true; m.castShadow = true; scene.add(m);
+  }
+  mound(-24, -40, 14, 5.2, 20, 0x36873A);
+  mound(26, -62, 16, 6.4, 22, 0x338138);
+  mound(-30, -92, 18, 6.0, 24, 0x36873A);
+  mound(22, -118, 15, 5.0, 20, 0x2F7A34);
+
+  // a walking path down the left, because this game is about walking
+  var path = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 150), mat(0xD9C79A, 1));
+  path.rotation.x = -Math.PI / 2; path.position.set(-11.6, 0.04, -55);
+  path.receiveShadow = true; scene.add(path);
+
+  // grass tufts through the rough
+  var tuftGeo = new THREE.ConeGeometry(0.16, 0.72, 5);
+  var tuft = new THREE.InstancedMesh(tuftGeo, mat(0x4C9E43, 1), 1100);
+  tuft.castShadow = true;
+  var dummy = new THREE.Object3D();
+  for (var ti = 0; ti < 1100; ti++){
+    var tx = (rnd() - 0.5) * 96, tzz = -rnd() * 165 + 12;
+    if (Math.abs(tx) < 9.6 && tzz > -150) tx += tx > 0 ? 10 : -10;
+    dummy.position.set(tx, 0.34, tzz);
+    dummy.rotation.set((rnd() - 0.5) * 0.3, rnd() * 3.14, (rnd() - 0.5) * 0.3);
+    dummy.scale.setScalar(0.7 + rnd() * 0.9);
+    dummy.updateMatrix(); tuft.setMatrixAt(ti, dummy.matrix);
+  }
+  scene.add(tuft);
+
+  // wildflowers
+  var flowerCols = [0xFFD65C, 0xFF8FA8, 0xFFFFFF, 0xC08CE8];
+  for (var fc = 0; fc < flowerCols.length; fc++){
+    var fl = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 7, 6), mat(flowerCols[fc], 0.8), 60);
+    for (var fi = 0; fi < 60; fi++){
+      var fx = (rnd() - 0.5) * 74, fz = -rnd() * 150 + 8;
+      if (Math.abs(fx) < 10.5) fx += fx > 0 ? 11 : -11;
+      dummy.position.set(fx, 0.5, fz);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.setScalar(0.8 + rnd() * 0.7);
+      dummy.updateMatrix(); fl.setMatrixAt(fi, dummy.matrix);
+    }
+    scene.add(fl);
+  }
+
+  // rocks + bushes
+  for (var ri = 0; ri < 16; ri++){
+    var rk = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5 + rnd() * 0.7, 0), mat(0x9AA3A0, 1));
+    var rx2 = (rnd() - 0.5) * 70; if (Math.abs(rx2) < 12) rx2 += rx2 > 0 ? 12 : -12;
+    rk.position.set(rx2, 0.3, -rnd() * 150 + 6);
+    rk.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+    rk.castShadow = true; rk.receiveShadow = true; scene.add(rk);
+  }
+  for (var bi = 0; bi < 22; bi++){
+    var bs = new THREE.Group();
+    var bcol = bi % 3 === 0 ? 0x2F7A38 : 0x3C9440;
+    for (var bj = 0; bj < 3; bj++){
+      var bb = new THREE.Mesh(new THREE.SphereGeometry(0.7 + rnd() * 0.5, 9, 7), mat(bcol, 1));
+      bb.position.set((rnd() - 0.5) * 1.3, 0.55 + rnd() * 0.3, (rnd() - 0.5) * 1.3);
+      bb.castShadow = true; bs.add(bb);
+    }
+    var bx = (rnd() - 0.5) * 76; if (Math.abs(bx) < 12.5) bx += bx > 0 ? 13 : -13;
+    bs.position.set(bx, 0, -rnd() * 155 + 8);
+    scene.add(bs);
+  }
+
+  // white fence along the left, hinting at the neighborhood
+  for (var pi = 0; pi < 30; pi++){
+    var post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.5, 0.16), mat(0xF3F2EC, 0.8));
+    post.position.set(-17.5, 0.75, 6 - pi * 5.4); post.castShadow = true; scene.add(post);
+  }
+  for (var pr = 0; pr < 29; pr++){
+    var rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 5.4), mat(0xF3F2EC, 0.8));
+    rail.position.set(-17.5, 1.16, 3.3 - pr * 5.4); rail.castShadow = true; scene.add(rail);
+    var rail2 = rail.clone(); rail2.position.y = 0.62; scene.add(rail2);
+  }
+
+  // neighborhood rooftops in the distance
+  function house(x, z, w, hgt, wall, roof){
+    var g = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.BoxGeometry(w, hgt, w * 0.8), mat(wall, 0.95));
+    body.position.y = hgt / 2; body.castShadow = true; body.receiveShadow = true; g.add(body);
+    var rf = new THREE.Mesh(new THREE.ConeGeometry(w * 0.82, hgt * 0.62, 4), mat(roof, 1));
+    rf.position.y = hgt + hgt * 0.31; rf.rotation.y = Math.PI / 4; rf.castShadow = true; g.add(rf);
+    g.position.set(x, 0, z); g.rotation.y = (rnd() - 0.5) * 0.5; scene.add(g);
+  }
+  var walls = [0xF0E4CE, 0xE8D7BC, 0xDCC7A8, 0xF4EAD6];
+  var roofs = [0x8A5A46, 0x6E4C3E, 0x7C5140];
+  for (var hi = 0; hi < 9; hi++){
+    house(-46 - rnd() * 26, -60 - hi * 16, 6 + rnd() * 3, 5 + rnd() * 2,
+          walls[hi % walls.length], roofs[hi % roofs.length]);
+  }
+  for (var hj = 0; hj < 7; hj++){
+    house(44 + rnd() * 24, -84 - hj * 17, 6 + rnd() * 3, 5 + rnd() * 2,
+          walls[(hj + 1) % walls.length], roofs[(hj + 2) % roofs.length]);
+  }
+
+  // tee markers + the sign you read before you hit
+  var tm1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), mat(0xE0342B, 0.7));
+  tm1.position.set(-2.2, 0.3, 0.4); tm1.castShadow = true; scene.add(tm1);
+  var tm2 = tm1.clone(); tm2.position.x = 2.2; scene.add(tm2);
+  var signPost = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5, 7), mat(0x6A4527, 1));
+  signPost.position.set(-4.4, 0.75, 1.6); signPost.castShadow = true; scene.add(signPost);
+  var signBoard = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.85, 0.1), mat(0xF3EBD6, 0.9));
+  signBoard.position.set(-4.4, 1.72, 1.6); signBoard.castShadow = true; scene.add(signBoard);
+
+  // clouds
+  function cloud(x, y, z, s){
+    var g = new THREE.Group();
+    var cm = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 1, metalness: 0,
+                                              emissive: 0xBFD9E8, emissiveIntensity: 0.32, fog: false });
+    for (var ci = 0; ci < 5; ci++){
+      var pf = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 9), cm);
+      pf.position.set((ci - 2) * 1.5 + (rnd() - 0.5), (rnd() - 0.5) * 0.7, (rnd() - 0.5) * 1.4);
+      pf.scale.setScalar(1.5 - Math.abs(ci - 2) * 0.28 + rnd() * 0.3);
+      g.add(pf);
+    }
+    g.position.set(x, y, z); g.scale.setScalar(s); scene.add(g);
+  }
+  cloud(-52, 44, -180, 5.5); cloud(38, 52, -210, 6.6);
+  cloud(88, 40, -160, 4.4); cloud(-14, 58, -246, 7.2);
+
+  // cool fill from behind, so edges catch light like a rendered still
+  var rim = new THREE.DirectionalLight(0xBFE3FF, 0.85);
+  rim.position.set(-22, 16, -34);
+  scene.add(rim);
+
+  // flag
+  var flagGroup = new THREE.Group();
+  var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 7, 8), mat(0xF0F4F0, 0.6));
+  pole.position.y = 3.5; pole.castShadow = true; flagGroup.add(pole);
+  var cloth = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.5), new THREE.MeshStandardMaterial({
+    color: 0xE0342B, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }));
+  cloth.position.set(1.3, 6.2, 0); cloth.castShadow = true; flagGroup.add(cloth);
+  var cup = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.12, 16), mat(0x1F1F22, 1));
+  cup.position.y = 0.07; flagGroup.add(cup);
+  flagGroup.position.set(0, 0, -104); scene.add(flagGroup);
+
+  // --- golfer ---
+  // lathe profile => one continuous body, not stacked cans
+  function lathe(pts, m, seg){
+    var v = [];
+    for (var i = 0; i < pts.length; i++) v.push(new THREE.Vector2(pts[i][0], pts[i][1]));
+    var mesh = new THREE.Mesh(new THREE.LatheGeometry(v, seg || 24), m);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    return mesh;
+  }
+
+  function buildGolfer(){
+    var g = new THREE.Group();
+    var skin = mat(0xF6C9A0, 0.78);
+    var shirt = mat(0xE8503A, 0.82);
+    var pants = mat(0x3B4CA0, 0.86);
+
+    // legs — tapered, with knees, so the silhouette curves
+    function leg(x){
+      var l = new THREE.Group();
+      var thigh = lathe([[0.02,0],[0.23,0.06],[0.26,0.5],[0.22,0.95],[0.02,1.0]], pants, 16);
+      l.add(thigh);
+      var shoe = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 12), mat(0xF7F7F2, 0.6));
+      shoe.scale.set(0.9, 0.5, 1.45); shoe.position.set(0, 0.12, 0.14);
+      shoe.castShadow = true; l.add(shoe);
+      var sole = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mat(0xB9C4BC, 0.7));
+      sole.scale.set(0.92, 0.24, 1.48); sole.position.set(0, 0.05, 0.14); l.add(sole);
+      l.position.set(x, 0.06, 0);
+      return l;
+    }
+    g.add(leg(-0.27)); g.add(leg(0.27));
+
+    // shorts + shirt as one flowing lathe pair
+    var hips = lathe([[0.02,0.95],[0.44,1.0],[0.52,1.24],[0.5,1.5],[0.02,1.52]], pants);
+    g.add(hips);
+    var torso = lathe([
+      [0.02,1.46],[0.5,1.5],[0.58,1.8],[0.62,2.15],[0.6,2.45],
+      [0.52,2.66],[0.36,2.8],[0.2,2.86],[0.02,2.88]
+    ], shirt);
+    g.add(torso);
+    var collar = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.055, 8, 20), mat(0xF7F7F2, 0.8));
+    collar.position.y = 2.87; collar.rotation.x = Math.PI / 2; g.add(collar);
+    var belt = new THREE.Mesh(new THREE.TorusGeometry(0.49, 0.06, 8, 22), mat(0x4A3524, 0.7));
+    belt.position.y = 1.5; belt.rotation.x = Math.PI / 2; g.add(belt);
+
+    // head — big, chunky, mascot proportions
+    var headPivot = new THREE.Group();
+    headPivot.position.set(0, 2.92, 0);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.68, 24, 20), skin);
+    head.scale.set(1, 1.06, 0.98); head.position.y = 0.6;
+    head.castShadow = true; headPivot.add(head);
+    var jaw = new THREE.Mesh(new THREE.SphereGeometry(0.5, 18, 14), skin);
+    jaw.scale.set(1, 0.72, 0.94); jaw.position.set(0, 0.36, -0.09); headPivot.add(jaw);
+    var neck = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.23, 0.22, 14), skin);
+    neck.position.y = 0.08; headPivot.add(neck);
+
+    // face — the thing that stops it reading as cut-out
+    var white = mat(0xFFFFFF, 0.35);
+    var dark = mat(0x2A2622, 0.4);
+    function eye(x){
+      var e = new THREE.Group();
+      var w = new THREE.Mesh(new THREE.SphereGeometry(0.145, 14, 12), white);
+      w.scale.set(1, 1.15, 0.7); e.add(w);
+      var p = new THREE.Mesh(new THREE.SphereGeometry(0.078, 12, 10), dark);
+      p.position.set(0, 0, -0.075); e.add(p);
+      var gl = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), mat(0xFFFFFF, 0.2));
+      gl.position.set(-0.03, 0.04, -0.12); e.add(gl);
+      var brow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.055, 0.07), mat(0x6B4A2C, 0.7));
+      brow.position.set(0, 0.24, -0.05); brow.rotation.z = x < 0 ? 0.16 : -0.16; e.add(brow);
+      e.position.set(x, 0.66, -0.53);
+      return e;
+    }
+    headPivot.add(eye(-0.24)); headPivot.add(eye(0.24));
+    var nose = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), skin);
+    nose.scale.set(1, 1.1, 1.2); nose.position.set(0, 0.53, -0.62); headPivot.add(nose);
+    var mouth = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.038, 8, 18, Math.PI), dark);
+    mouth.position.set(0, 0.38, -0.56); mouth.rotation.set(0.25, 0, Math.PI); headPivot.add(mouth);
+    var earL = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), skin);
+    earL.scale.set(0.5, 1, 0.9); earL.position.set(-0.66, 0.56, 0.02); headPivot.add(earL);
+    var earR = earL.clone(); earR.position.x = 0.66; headPivot.add(earR);
+
+    // cap with a real crown and a curved brim
+    var capTop = lathe([
+      [0.02,0.94],[0.3,0.92],[0.54,0.8],[0.68,0.62],[0.72,0.5],[0.73,0.44],[0.02,0.44]
+    ], mat(0xFFC93C, 0.72));
+    capTop.castShadow = true; headPivot.add(capTop);
+    var brim = new THREE.Mesh(new THREE.SphereGeometry(0.62, 20, 12, 0, Math.PI, Math.PI / 2.4, Math.PI / 3.4),
+                              mat(0xE8A81C, 0.72));
+    brim.scale.set(1, 0.3, 1.34); brim.position.set(0, 0.44, -0.16);
+    brim.rotation.y = Math.PI / 2; brim.castShadow = true; headPivot.add(brim);
+    var button = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), mat(0xE8A81C, 0.7));
+    button.position.y = 0.95; headPivot.add(button);
+    g.add(headPivot);
+
+    // arms — shoulder ball, tapered limb, hand ball. No visible joins.
+    function arm(x){
+      var a = new THREE.Group();
+      var sh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 12), shirt);
+      a.add(sh);
+      var sleeve = lathe([[0.02,0],[0.2,-0.04],[0.19,-0.34],[0.02,-0.38]], shirt, 14);
+      a.add(sleeve);
+      var limb = lathe([[0.02,-0.3],[0.16,-0.36],[0.14,-0.95],[0.02,-1.02]], skin, 14);
+      a.add(limb);
+      var hand = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), skin);
+      hand.position.y = -1.02; hand.castShadow = true; a.add(hand);
+      a.position.set(x, 2.6, 0);
+      a.rotation.z = x < 0 ? 0.34 : -0.34;
+      return a;
+    }
+    var armL = arm(-0.6), armR = arm(0.6);
+    g.add(armL); g.add(armR);
+
+    var club = new THREE.Group();
+    var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 2.5, 6), mat(0xD8DEE4, 0.4));
+    shaft.position.y = -1.25; shaft.castShadow = true; club.add(shaft);
+    var headC = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.24), mat(0xB9C2CB, 0.35));
+    headC.position.set(0.16, -2.45, 0); headC.castShadow = true; club.add(headC);
+    club.position.set(0.9, 1.66, 0.3);
+    g.add(club);
+
+    // the bag he carries — this is a walking game, he doesn't get a cart
+    var bag = new THREE.Group();
+    var sack = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.28, 1.7, 12), mat(0x2E6E4E, 0.9));
+    sack.castShadow = true; bag.add(sack);
+    var band = new THREE.Mesh(new THREE.CylinderGeometry(0.335, 0.335, 0.26, 12), mat(0xFFC93C, 0.8));
+    band.position.y = 0.24; bag.add(band);
+    var headcovers = [0xE0342B, 0xF3F2EC, 0x2E353C];
+    for (var hc = 0; hc < 3; hc++){
+      var gr = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.75, 6), mat(headcovers[hc], 0.6));
+      gr.position.set((hc - 1) * 0.16, 1.15, -0.04 + hc * 0.05);
+      gr.rotation.z = (hc - 1) * 0.13; gr.castShadow = true; bag.add(gr);
+    }
+    var strap = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.055, 6, 16, Math.PI), mat(0x1F4E38, 0.9));
+    strap.position.set(0, 0.3, 0.16); strap.rotation.set(0.4, 0, 0); bag.add(strap);
+    bag.position.set(-0.2, 2.12, -0.62);
+    bag.rotation.set(0.26, 0, 0.22);
+    g.add(bag);
+
+    // glove
+    var glove = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10), mat(0xF7F7F2, 0.7));
+    glove.position.set(0.9, 1.64, 0.32); glove.castShadow = true; g.add(glove);
+
+    g.userData.club = club;
+    g.userData.armL = armL; g.userData.armR = armR;
+    return g;
+  }
+  var golfer = buildGolfer();
+  golfer.position.set(-1.5, 0, 1.2);
+  scene.add(golfer);
+
+  // --- cow ---  (faces -z, same as the golfer)
+  function buildCow(){
+    var g = new THREE.Group();
+    var white = mat(0xFAFAFC, 0.88);
+    var black = mat(0x2C2933, 0.86);
+
+    // barrel body, tapered front to back
+    var body = lathe([
+      [0.02,-1.5],[0.62,-1.42],[0.86,-1.0],[0.95,-0.2],[0.9,0.6],[0.72,1.15],[0.4,1.4],[0.02,1.44]
+    ], white, 22);
+    body.rotation.x = Math.PI / 2; body.position.set(0, 1.42, 0); g.add(body);
+
+    function patch(x, y, z, sx, sy, sz){
+      var p = new THREE.Mesh(new THREE.SphereGeometry(0.46, 14, 12), black);
+      p.scale.set(sx, sy, sz); p.position.set(x, y, z); g.add(p);
+    }
+    patch(-0.52, 1.78, -0.55, 1.05, 0.95, 0.85);
+    patch(0.66, 1.28, -0.2, 0.9, 0.85, 1.0);
+    patch(0.15, 1.85, 0.75, 0.85, 0.8, 0.7);
+    patch(-0.72, 1.35, 0.5, 0.7, 0.7, 0.7);
+
+    for (var i = 0; i < 4; i++){
+      var lg = new THREE.Group();
+      var upper = lathe([[0.02,0],[0.2,0.06],[0.22,0.6],[0.18,0.95],[0.02,1.0]], white, 12);
+      lg.add(upper);
+      var hoof = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.24, 12), black);
+      hoof.position.y = 0.12; hoof.castShadow = true; lg.add(hoof);
+      lg.position.set(i < 2 ? -0.58 : 0.58, 0.04, i % 2 ? 0.72 : -0.66);
+      g.add(lg);
+    }
+
+    var headPivot = new THREE.Group();
+    headPivot.position.set(0, 2.1, -1.28);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.66, 20, 16), white);
+    head.scale.set(1, 1.02, 1.1); head.castShadow = true; headPivot.add(head);
+    var muzzle = lathe([[0.02,0],[0.36,0.06],[0.42,0.3],[0.36,0.5],[0.02,0.52]], mat(0xF2A7B8, 0.8), 16);
+    muzzle.rotation.x = Math.PI / 2; muzzle.position.set(0, -0.14, -0.58); headPivot.add(muzzle);
+    var nos1 = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), mat(0xD9788E, 0.7));
+    nos1.position.set(-0.14, -0.06, -1.02); headPivot.add(nos1);
+    var nos2 = nos1.clone(); nos2.position.x = 0.14; headPivot.add(nos2);
+
+    function ceye(x){
+      var e = new THREE.Group();
+      var w = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), mat(0xFFFFFF, 0.3));
+      w.scale.set(1, 1.15, 0.75); e.add(w);
+      var p = new THREE.Mesh(new THREE.SphereGeometry(0.095, 12, 10), black);
+      p.position.z = -0.085; e.add(p);
+      var gl = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), mat(0xFFFFFF, 0.2));
+      gl.position.set(-0.04, 0.05, -0.14); e.add(gl);
+      var lash = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.06), black);
+      lash.position.set(0, 0.19, -0.06); lash.rotation.z = x < 0 ? 0.2 : -0.2; e.add(lash);
+      e.position.set(x, 0.24, -0.5);
+      return e;
+    }
+    headPivot.add(ceye(-0.3)); headPivot.add(ceye(0.3));
+
+    var hornL = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.4, 10), mat(0xEDE2C6, 0.7));
+    hornL.position.set(-0.36, 0.62, 0.06); hornL.rotation.z = 0.5; hornL.castShadow = true; headPivot.add(hornL);
+    var hornR = hornL.clone(); hornR.position.x = 0.36; hornR.rotation.z = -0.5; headPivot.add(hornR);
+
+    var earL = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), white);
+    earL.scale.set(1.1, 0.4, 0.62); earL.position.set(-0.68, 0.32, 0.1);
+    earL.rotation.z = 0.35; earL.castShadow = true; headPivot.add(earL);
+    var earR = earL.clone(); earR.position.x = 0.68; earR.rotation.z = -0.35; headPivot.add(earR);
+
+    var forelock = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), black);
+    forelock.scale.set(1.1, 0.55, 0.7); forelock.position.set(0, 0.58, -0.34); headPivot.add(forelock);
+    g.add(headPivot);
+
+    var tail = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 1.2, 8), white);
+    tail.position.set(0, 1.75, 1.42); tail.rotation.x = -0.55; g.add(tail);
+    var tuftEnd = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), black);
+    tuftEnd.position.set(0, 1.22, 1.72); g.add(tuftEnd);
+
+    g.userData.head = headPivot;
+    g.userData.ears = [earL, earR];
+    return g;
+  }
+  var cow = buildCow();
+  cow.position.set(-6.2, 0, 2.4);
+  cow.rotation.y = 0.45;
+  cow.scale.setScalar(0.78);
+  scene.add(cow);
+
+  // --- ball ---
+  var ball = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 14),
+    new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.35, metalness: 0 }));
+  ball.castShadow = true; ball.position.set(0, 0.3, 0);
+  scene.add(ball);
+
+  var tee = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.03, 0.3, 6), mat(0xFFF0C0, 0.7));
+  tee.position.set(0, 0.15, 0); scene.add(tee);
+
+  // ---------- timeline ----------
+  var TEE = new THREE.Vector3(0, 0.3, 0);
+  var LAND = new THREE.Vector3(1.6, 0.3, -72);
+  var A_END = 3.6, B_END = 8.2, C_END = 15.0;
+
+  var aimHud = document.getElementById('aimHud');
+  var meterHud = document.getElementById('meterHud');
+  var walkHud = document.getElementById('walkHud');
+  var waitTag = document.getElementById('waitTag');
+  var tickEl = document.getElementById('tick');
+  var ringArc = document.getElementById('ringArc');
+  var ringNum = document.getElementById('ringNum');
+  var powerFill = document.getElementById('powerFill');
+  var plateVal = document.getElementById('plateVal');
+
+  function show(el, on){ el.classList.toggle('show', on); }
+  function lerp(a, b, t){ return a + (b - a) * t; }
+  function ease(t){ return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+  function clamp01(t){ return t < 0 ? 0 : t > 1 ? 1 : t; }
+
+  var camPos = new THREE.Vector3();
+  var camTarget = new THREE.Vector3();
+
+  function frame(t){
+    var walking = false;
+
+    if (t < A_END){
+      // ---- line it up
+      var p = t / A_END;
+      camPos.set(lerp(-3.4, -2.6, p), lerp(4.4, 3.9, p), lerp(9.4, 7.6, p));
+      camTarget.set(0, 1.9, lerp(-16, -26, p));
+      golfer.position.set(-1.5, 0, 1.2);
+      golfer.rotation.y = 0;
+      cow.position.set(-6.2, 0, 2.4);
+      cow.rotation.y = 0.45;
+      ball.position.copy(TEE);
+      var swing = clamp01((p - 0.62) / 0.38);
+      golfer.userData.club.rotation.x = -swing * 2.4;
+      powerFill.style.width = (18 + clamp01(p / 0.8) * 74) + '%';
+      show(aimHud, true); show(meterHud, false); show(walkHud, false); show(waitTag, false);
+      plateVal.textContent = 'Cul-de-sac Carry';
+
+    } else if (t < B_END){
+      // ---- watch it fly
+      var q = (t - A_END) / (B_END - A_END);
+      var f = clamp01(q / 0.72);
+      ball.position.x = lerp(TEE.x, LAND.x, f);
+      ball.position.z = lerp(TEE.z, LAND.z, f);
+      ball.position.y = 0.3 + Math.sin(f * Math.PI) * 15.5;
+      camPos.set(lerp(-2.6, -1.2, q), lerp(3.9, 6.4, q), lerp(7.6, 2.0, q));
+      camTarget.set(ball.position.x, ball.position.y * 0.55 + 1.2, ball.position.z + 5);
+      golfer.userData.club.rotation.x = lerp(-2.4, 1.1, clamp01(q / 0.18));
+      // he sets off after it, facing down the hole
+      var go = clamp01((q - 0.45) / 0.55);
+      golfer.position.set(lerp(-1.5, 0.2, go), 0, lerp(1.2, -14, go));
+      golfer.rotation.y = 0;
+      if (go > 0.02) walking = true;
+      tickEl.textContent = Math.round(f * 218);
+      show(aimHud, false); show(meterHud, q > 0.06); show(walkHud, false); show(waitTag, false);
+      plateVal.textContent = 'Cul-de-sac Carry';
+
+    } else {
+      // ---- now you walk
+      var r = (t - B_END) / (C_END - B_END);
+      ball.position.copy(LAND);
+      var arrive = clamp01(r / 0.42);
+      var ga = ease(arrive);
+      golfer.position.set(lerp(0.2, LAND.x - 1.6, ga), 0, lerp(-14, LAND.z + 1.4, ga));
+      // walking he faces down the hole; arrived, he turns back to look for you
+      golfer.rotation.y = arrive < 0.9 ? 0 : lerp(0, Math.PI * 0.86, clamp01((arrive - 0.9) / 0.1));
+      if (arrive < 0.9) walking = true;
+      golfer.userData.club.rotation.x = 1.1;
+
+      var cowIn = ease(clamp01(r / 0.5));
+      cow.position.set(lerp(-6.2, LAND.x + 3.4, cowIn), 0, lerp(2.4, LAND.z + 2.6, cowIn));
+      cow.rotation.y = lerp(0.45, Math.PI * 0.82, cowIn);
+
+      var camIn = ease(clamp01(r / 0.52));
+      camPos.set(lerp(0.4, LAND.x + 2.4, camIn), lerp(6.4, 2.9, camIn), lerp(-2, LAND.z + 8.2, camIn));
+      camTarget.set(lerp(LAND.x, LAND.x + 0.5, camIn), lerp(1.8, 2.3, camIn), lerp(LAND.z, LAND.z - 0.4, camIn));
+
+      tickEl.textContent = '218';
+      var walkProg = clamp01((r - 0.45) / 0.5);
+      ringArc.setAttribute('stroke-dashoffset', String(182 - walkProg * 0.41 * 182));
+      ringNum.textContent = Math.round(walkProg * 38);
+      show(aimHud, false); show(meterHud, false);
+      show(waitTag, r > 0.42 && r < 0.92);
+      show(walkHud, r > 0.46);
+      plateVal.textContent = 'Shot 1 · 218 yd';
+    }
+
+    // walking bob
+    if (walking){
+      var bob = Math.sin(t * 11) * 0.09;
+      golfer.position.y = Math.abs(bob);
+      golfer.userData.armL.rotation.x = bob * 4;
+      golfer.userData.armR.rotation.x = -bob * 4;
+    } else {
+      golfer.position.y = 0;
+      golfer.userData.armL.rotation.x = 0;
+      golfer.userData.armR.rotation.x = 0;
+    }
+
+    cow.userData.head.position.y = 2.1 + Math.sin(t * 1.6) * 0.07;
+    cow.userData.head.rotation.z = Math.sin(t * 0.9) * 0.05;
+    cow.userData.ears[0].rotation.x = Math.sin(t * 3.1) * 0.22;
+    cow.userData.ears[1].rotation.x = Math.sin(t * 3.1 + 1.2) * 0.22;
+    cloth.rotation.y = Math.sin(t * 2.4) * 0.35;
+
+    camera.position.copy(camPos);
+    camera.lookAt(camTarget);
+  }
+
+  function resize(){
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    if (canvas.width !== w || canvas.height !== h){
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+  }
+
+  var start = null;
+  function loop(now){
+    if (start === null) start = now;
+    var t = ((now - start) / 1000) % C_END;
+    resize();
+    frame(t);
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+
+  if (reduce){
+    resize(); frame(2.4); renderer.render(scene, camera);
+    window.addEventListener('resize', function(){ resize(); frame(2.4); renderer.render(scene, camera); });
+  } else {
+    requestAnimationFrame(loop);
+  }
+})();
+</script>
