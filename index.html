@@ -56,6 +56,7 @@
        font-variant-numeric:tabular-nums;}
   .big em{font-style:normal;font-size:15px;color:var(--muted);margin-left:5px;
           font-family:"IBM Plex Mono",monospace;}
+  .big.ok{color:var(--ok);}
   .sub{font-size:12.5px;line-height:1.55;color:var(--muted);}
   .sub b{color:var(--ink);font-weight:600;}
 
@@ -134,7 +135,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.9</b><br><span id="roundName">Teaching round</span></div>
+    <div class="build">Test rig <b>1.0</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -158,7 +159,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.9 changes:</b> on the green the board zooms right in, with the cup at real size and rings at 3, 6, 12 and 24 feet, so a putt can actually be aimed. And the swing pad no longer fires shots you did not take - a wobble in the pull-back can't arm the flick, pulling back further un-arms it, and iOS losing the touch now abandons the swing instead of duffing it.</p>
+  <p class="foot"><b>1.0 changes:</b> the flick is now measured along its whole path over several touch events instead of one jump, which is what was making drives read wrong, and the driver gets a wider pure band than the wedge. Holing out says IT'S IN in green instead of quoting you a distance, and a tap-in you are already standing over pays you straight away instead of asking for a three inch walk.</p>
 </div>
 
 <script>
@@ -181,10 +182,11 @@
     // curve 1 = linear power. curve 2 = squared, which gives fine touch at
     // the short end and is what makes a wedge and a putter playable.
     bag: {
-      driver: { name:'Driver', max:230, curve:1, aimSpan:1.00, flick:900 },
-      iron:   { name:'Iron',   max:110, curve:1, aimSpan:0.85, flick:900 },
-      wedge:  { name:'Wedge',  max:45,  curve:2, aimSpan:0.70, flick:820 },
-      putter: { name:'Putter', max:11,  curve:2, aimSpan:0.45, flick:620, putt:true }
+      // forgive widens the "pured it" band for that club only. 1 = no change.
+      driver: { name:'Driver', max:230, curve:1, aimSpan:1.00, flick:900, forgive:1.30 },
+      iron:   { name:'Iron',   max:110, curve:1, aimSpan:0.85, flick:900, forgive:1.12 },
+      wedge:  { name:'Wedge',  max:45,  curve:2, aimSpan:0.70, flick:820, forgive:1.00 },
+      putter: { name:'Putter', max:11,  curve:2, aimSpan:0.45, flick:620, forgive:1.00, putt:true }
     },
     clubPick: 0.95,     // auto-club: shortest club whose max*this covers the shot
 
@@ -293,7 +295,13 @@
       // iOS dropping pointer capture used to count as letting go.
       minBack: 26,      // px of backswing before ANY shot can fire
       flickArm: 20,     // px of forward travel before the flick counts as started
-      strikeAt: 0.18    // fires when the finger comes back inside this x backswing
+      strikeAt: 0.18,   // fires when the finger comes back inside this x backswing
+      // iOS coalesces touch moves, so a fast flick can arrive as ONE jump and
+      // read as an impossible speed. A driver asks for the fastest flick, so it
+      // got hit hardest - his 0.9 note: "drives still glitch a little."
+      minFlickSamples: 2,  // need this many move events before a strike counts
+      minFlickMs: 55,      // no human flick is faster than this; floor it
+      ratioMin: 0.25, ratioMax: 3.0   // clamp, so a bad sample can't fly off
     }
   };
 
@@ -468,8 +476,8 @@
   var CLUB_ORDER = ['wedge', 'iron', 'driver'];
   function clubOf(key){
     var b = TUNE.bag[key];
-    return { key:key, name:b.name, max:b.max, curve:b.curve,
-             aimSpan:b.aimSpan, flick:b.flick, putt:!!b.putt };
+    return { key:key, name:b.name, max:b.max, curve:b.curve, aimSpan:b.aimSpan,
+             flick:b.flick, forgive:b.forgive || 1, putt:!!b.putt };
   }
   function inBag(){
     return CLUB_ORDER.filter(function(k){ return HOLE.bag.indexOf(k) >= 0; });
@@ -751,11 +759,22 @@
         padDrag.locked = false;
         padDrag.backDy = dy; padDrag.backDx = padDrag.cx - padDrag.sx;
         padDrag.deepY = padDrag.cy; padDrag.deepX = padDrag.cx;
+        padDrag.fPath = 0; padDrag.fN = 0; padDrag.px = undefined;
+      }
+      // measure the flick along its whole path, one event at a time
+      if (padDrag.locked){
+        var lx = padDrag.px === undefined ? padDrag.deepX : padDrag.px;
+        var ly = padDrag.py === undefined ? padDrag.deepY : padDrag.py;
+        padDrag.fPath = (padDrag.fPath || 0) + Math.hypot(padDrag.cx - lx, padDrag.cy - ly);
+        padDrag.px = padDrag.cx; padDrag.py = padDrag.cy;
+        padDrag.fN = (padDrag.fN || 0) + 1;
+        padDrag.fT = performance.now();
       }
       update();
 
       // strike when the hand comes through past the ball
       if (padDrag.locked && padDrag.backDy >= SG.minBack &&
+          (padDrag.fN || 0) >= SG.minFlickSamples &&
           dy <= padDrag.backDy * SG.strikeAt) fire(e);
     });
 
@@ -764,11 +783,14 @@
       var v = vals();
       padDrag.fired = true;
 
-      var dt = Math.max(0.016, (performance.now() - padDrag.t0) / 1000);
+      var SF = TUNE.swing;
+      var dt = Math.max(SF.minFlickMs / 1000,
+                        ((padDrag.fT || performance.now()) - padDrag.t0) / 1000);
       var fdx = padDrag.cx - padDrag.deepX, fdy = padDrag.cy - padDrag.deepY;
-      var speed = Math.hypot(fdx, fdy) / dt;
+      var path = padDrag.fPath || Math.hypot(fdx, fdy);
+      var speed = path / dt;
       var want = idealFlick(v.p);
-      var ratio = speed / want;
+      var ratio = Math.max(SF.ratioMin, Math.min(SF.ratioMax, speed / want));
 
       // a flick that wanders off the backswing line opens or closes the face
       var faceErr = Math.atan2(fdx, -fdy) - Math.atan2(-padDrag.backDx, padDrag.backDy);
@@ -776,14 +798,17 @@
       while (faceErr < -Math.PI) faceErr += Math.PI * 2;
 
       var S = TUNE.swing;
+      // a longer club asks for a faster flick, so it gets a wider pure band
+      var loBand = 1 - (1 - S.pureLo) * c.forgive;
+      var hiBand = 1 + (S.pureHi - 1) * c.forgive;
       var dist = v.dist, ang = v.ang, quality, miss;
-      if (ratio < S.pureLo){                  // left it out there
-        miss = Math.min(1, (S.pureLo - ratio) / S.pureLo);
+      if (ratio < loBand){                    // left it out there
+        miss = Math.min(1, (loBand - ratio) / loBand);
         dist *= 1 - S.lazyLoss * miss;
         ang += (c.putt ? S.lazyPushPutt : S.lazyPush) * miss;
         quality = miss > 0.55 ? 'Chunked it' : 'Left it out there';
-      } else if (ratio > S.pureHi){           // came out of it early
-        miss = -Math.min(1, (ratio - S.pureHi) / 1.4);
+      } else if (ratio > hiBand){             // came out of it early
+        miss = -Math.min(1, (ratio - hiBand) / 1.4);
         dist *= 1 - S.quickLoss * Math.abs(miss);
         ang -= (c.putt ? S.quickPullPutt : S.quickPull) * Math.abs(miss);
         quality = Math.abs(miss) > 0.55 ? 'Came out of it' : 'Bit quick';
@@ -880,8 +905,13 @@
 
       var holed = pinDist() <= 0.55;
       if (holed){
-        // you still have to go and get it — that is when you get paid
-        state.mode = 'collect';
+        // you still have to go and get it — that is when you get paid. But a
+        // tap-in from two feet asked him to walk three inches, which read as
+        // nonsense. If you are already standing there, you are already paid.
+        if (state.needFt < TUNE.walk.skipUnder){
+          state.totalFt += state.needFt; state.holeFt += state.needFt;
+          state.mode = 'paid';
+        } else state.mode = 'collect';
       } else if (state.needFt < TUNE.walk.skipUnder){
         state.totalFt += state.needFt; state.holeFt += state.needFt; state.mode = 'tee';
       } else {
@@ -1054,10 +1084,12 @@
 
     } else if (state.mode === 'collect'){
       stage.innerHTML =
-        '<h2>It dropped &middot; now go and get it</h2>' +
-        '<div class="big"><span id="walkNum">' + Math.ceil(state.needFt) + '</span><em>ft to the cup</em></div>' +
+        '<h2>Holed out</h2>' +
+        '<div class="big ok">IT&rsquo;S IN<em>no putt left</em></div>' +
         '<div class="bar ok"><i id="walkBar"></i></div>' +
-        '<p class="sub">The ball is in. <b>Nobody gets paid until you are standing over it.</b></p>' +
+        '<p class="sub">Now <b>walk <span id="walkNum">' + Math.ceil(state.needFt) +
+          '</span> ft</b> to the cup and pick it up. ' +
+          '<b>Nobody gets paid until you are standing over it.</b></p>' +
         walkControls();
       wireWalk('paid');
 
