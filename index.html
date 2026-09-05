@@ -117,6 +117,14 @@
     background:var(--grid);color:var(--ink);border:1px solid var(--line-hi);
     border-radius:7px;padding:7px 8px;text-align:center;}
 
+  table.card{width:100%;border-collapse:collapse;font-size:12px;
+             font-variant-numeric:tabular-nums;}
+  table.card th{font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--muted);font-weight:500;text-align:right;padding:0 0 6px;}
+  table.card th:first-child,table.card td:first-child{text-align:left;}
+  table.card td{text-align:right;padding:5px 0;border-top:1px solid var(--line);}
+  table.card td.s{color:var(--gold);font-weight:600;}
+
   .foot{font-size:10.5px;line-height:1.65;color:var(--muted);}
   .foot b{color:var(--ink);font-weight:600;}
 </style>
@@ -126,12 +134,12 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.6</b><br>Pull back, flick through</div>
+    <div class="build">Test rig <b>0.7</b><br>Generated nine</div>
   </div>
 
   <div class="holebar">
-    <div><span class="k">Hole</span><span class="v">1 · The Rug</span></div>
-    <div><span class="k">Par</span><span class="v">3</span></div>
+    <div><span class="k">Hole</span><span class="v" id="holeNum">1 of 9</span></div>
+    <div><span class="k">Par</span><span class="v" id="holePar">3 · 68 yd</span></div>
     <div><span class="k">To pin</span><span class="v gold" id="toPin">70 yd</span></div>
     <div><span class="k">Strokes</span><span class="v" id="strokes">0</span></div>
   </div>
@@ -149,31 +157,93 @@
     <span>Sensor <b id="sensor">idle</b></span>
   </div>
 
-  <p class="foot"><b>0.6 changes:</b> the swing is a pull back AND a flick forward. How fast you come through decides whether you pure it, leave it out there or come out of it early - and holding the pull no longer works at all.</p>
+  <p class="foot" id="foot"></p>
+  <p class="foot"><b>0.7 changes:</b> holes are generated, not drawn by hand, so a course never runs out. Full bag - Driver, Iron, Wedge, Putter. Nine holes end to end with a card at the end. Rough and sand now cost you steps as well as strokes. Every number in the game is a named dial in one block at the top of the file.</p>
 </div>
 
 <script>
 (function(){
   var STRIDE_KEY = 'hoofers.stride';
-  var stride = 2.5;
-  try { var sv = localStorage.getItem(STRIDE_KEY); if (sv) stride = parseFloat(sv) || 2.5; } catch(e){}
+  var stride = 2.5;   // the real default is TUNE.walk.stride, applied below
 
-  var RATIO = 7;
-  var HOLE = {
-    yards: 70, par: 3,
-    halfW: 7.0,              // fairway half width in yards
-    green: 6.0,              // green radius
-    bunkers: [ {a:52, l:6.5, r:4.2}, {a:38, l:-7.5, r:3.6} ]
+  // ==========================================================================
+  //  TUNE — EVERY number in Hoofers lives here, named and commented.
+  //  His rule, 2026-09-05: "make sure everything has dials and nothing is
+  //  locked so we cant adjust later." Nothing below this block is hardcoded.
+  //  Nothing in here is settled. Change a value, reload, play.
+  // ==========================================================================
+  var TUNE = {
+
+    // ---- THE BAG -----------------------------------------------------------
+    // His model: Driver, Irons, Wedges, Putter. Four families, not fourteen
+    // clubs — power within a family covers the span between them, so the
+    // maxes must OVERLAP or there are distances the bag cannot reach.
+    // curve 1 = linear power. curve 2 = squared, which gives fine touch at
+    // the short end and is what makes a wedge and a putter playable.
+    bag: {
+      driver: { name:'Driver', max:230, curve:1, aimSpan:1.00, flick:900 },
+      iron:   { name:'Iron',   max:110, curve:1, aimSpan:0.85, flick:900 },
+      wedge:  { name:'Wedge',  max:45,  curve:2, aimSpan:0.70, flick:820 },
+      putter: { name:'Putter', max:11,  curve:2, aimSpan:0.45, flick:620, putt:true }
+    },
+    clubPick: 0.95,     // auto-club: shortest club whose max*this covers the shot
+
+    // ---- THE COURSE --------------------------------------------------------
+    course: {
+      holes: 9,
+      // 2 par 3s, 5 par 4s, 2 par 5s = par 36, a standard nine. His call.
+      parOrder:   [3, 4, 4, 4, 5, 4, 3, 4, 5],
+      // His bands: 1 short/easy/immediate, 2-3 more nuance, 4-9 open up.
+      difficulty: [0.00, 0.28, 0.36, 0.55, 0.62, 0.70, 0.78, 0.86, 1.00],
+      // Game FEET walked per 1 real foot. THE dial that decides how far he
+      // actually walks. 7 = the indoor tutorial course (a nine is ~0.19 mi).
+      // About 1.4 makes a nine roughly a mile — the outdoor target.
+      ratio: 7,
+      seed: 20260905   // change this for a brand new set of nine holes
+    },
+
+    // ---- THE HOLE GENERATOR ------------------------------------------------
+    gen: {
+      // Hole length as a fraction of what the BAG can reach in (par-2) shots.
+      // This is what stops the generator building holes you cannot reach.
+      lenMin: 0.62, lenMax: 0.95, lenJitter: 0.12,
+      reach: { 3:['iron'], 4:['driver','iron'], 5:['driver','iron','iron'] },
+      bendsMin: 1, bendsMax: 3,        // sine harmonics in the centreline
+      bendMin: 0.09, bendMax: 0.16,    // total bend as a fraction of hole length
+      widthFrac: 0.075,                // fairway half width vs hole length
+      widthMin: 6, widthMax: 22,
+      widthNarrow: 0.35,               // pinch toward the green
+      widthHard: 0.30,                 // how much difficulty shaves the width
+      roughBand: 7,                    // yards of rough outside the fairway
+      greenFrac: 0.030, greenMin: 5.0, greenCap: 0.90,  // cap = x putter max
+      bunkersMin: 1, bunkersMax: 5,
+      bunkerRmin: 3.0, bunkerRmax: 6.0,
+      bunkerFrom: 0.25, bunkerTo: 0.95, // where along the hole they can sit
+      bunkerGap: 0.6,                   // how far off the fairway edge, x radius
+      viewPad: 0.10,                    // board looks this far past the pin
+      deepPast: 0.18                    // deep rough starts this far past the pin
+    },
+
+    // ---- WALKING -----------------------------------------------------------
+    walk: {
+      stride: 2.5,        // feet per step; his saved setting overrides this
+      skipUnder: 3,       // walks shorter than this auto-complete
+      // HIS IDEA, 2026-09-05: a bad lie costs you STEPS, not just strokes.
+      // Multiplies the walk for the shot that finished there.
+      liePenalty: { tee:1.00, fair:1.00, green:1.00, rough:1.15, deep:1.35, sand:1.30 }
+    },
+
+    // ---- THE SWING (0.6, settled at playtest 6 — iterate, don't redesign) --
+    swing: {
+      maxAng: 0.52,                    // ~30 degrees either way
+      pureLo: 0.70, pureHi: 1.50,      // flick ratio band that pures it
+      lazyLoss: 0.42, quickLoss: 0.12,
+      lazyPush: 0.16, lazyPushPutt: 0.05,
+      quickPull: 0.19, quickPullPutt: 0.05,
+      faceBend: 0.45, faceBendPutt: 0.18,
+      duffPower: 0.28, duffPush: 0.22
+    }
   };
-  // the fairway bends — straight max power runs out of it
-  function centre(a){
-    var t = Math.max(0, Math.min(1, a / HOLE.yards));
-    return Math.sin(t * Math.PI) * 6.5;
-  }
-  function halfWidth(a){
-    var t = Math.max(0, Math.min(1, a / HOLE.yards));
-    return HOLE.halfW * (1 - 0.35 * t);      // narrows toward the green
-  }
 
   var LIES = {
     tee:    { name:'Tee',    mult:1.00, roll:0.20 },
@@ -184,15 +254,114 @@
     green:  { name:'Green',  mult:1.00, roll:0.11 }
   };
 
+  function clamp(v, lo, hi){ return v < lo ? lo : v > hi ? hi : v; }
+
+  // ---------------- the generator ----------------
+  // Seeded, so the same seed always builds the same nine. Change the seed for
+  // a new course; the player never runs out.
+  function rng(seed){
+    var s = seed >>> 0;
+    return function(){
+      s = s + 0x6D2B79F5 | 0;
+      var t = Math.imul(s ^ s >>> 15, 1 | s);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function makeHole(n, par, diff, rand){
+    var G = TUNE.gen;
+
+    // THE BAG DECIDES HOW LONG A HOLE CAN BE. Par 3 = one iron, par 4 = drive
+    // plus approach, par 5 = drive plus two. That is the par mismatch from
+    // playtest 5 solved at scale — a generated hole is always reachable.
+    var reach = 0;
+    (G.reach[par] || G.reach[4]).forEach(function(k){ reach += TUNE.bag[k].max; });
+    var frac = G.lenMin + (G.lenMax - G.lenMin) * diff;
+    var yards = Math.round(reach * frac * (1 - G.lenJitter / 2 + rand() * G.lenJitter));
+
+    // centreline = a sum of sine harmonics, so it is zero at the tee AND at
+    // the pin (both sit on the axis) but bends however hard we ask in between.
+    // No hole in Hoofers is a straight line — his rule.
+    var nb = Math.round(G.bendsMin + (G.bendsMax - G.bendsMin) * diff);
+    var amp = yards * (G.bendMin + (G.bendMax - G.bendMin) * diff);
+    var raw = [], sum = 0, i;
+    for (i = 1; i <= nb; i++){ var w = (0.5 + rand() * 0.5) / i; raw.push(w); sum += w; }
+    var bends = [];
+    for (i = 0; i < nb; i++){
+      bends.push({ k:i + 1, a: amp * (raw[i] / sum) * (rand() < 0.5 ? -1 : 1) });
+    }
+
+    var halfW = clamp(yards * G.widthFrac, G.widthMin, G.widthMax) * (1 - G.widthHard * diff);
+    var green = clamp(yards * G.greenFrac, G.greenMin, TUNE.bag.putter.max * G.greenCap);
+
+    var hole = {
+      n: n, par: par, diff: diff, yards: yards, halfW: halfW, green: green,
+      bends: bends, bunkers: []
+    };
+
+    // bunkers sit just off the fairway edge, mostly on the outside of a bend
+    var nbunk = Math.round(G.bunkersMin + (G.bunkersMax - G.bunkersMin) * diff);
+    for (i = 0; i < nbunk; i++){
+      var t = G.bunkerFrom + rand() * (G.bunkerTo - G.bunkerFrom);
+      var a = t * yards;
+      var r = G.bunkerRmin + rand() * (G.bunkerRmax - G.bunkerRmin);
+      var c = centreOf(hole, a), hw = halfWidthOf(hole, a);
+      var side = rand() < 0.5 ? -1 : 1;
+      hole.bunkers.push({ a:a, l: c + side * (hw + r * G.bunkerGap), r:r });
+    }
+
+    // how much lateral room the board needs to show all of it
+    hole.span = amp + halfW + G.roughBand + 2;
+    hole.viewLen = yards * (1 + G.viewPad);
+    return hole;
+  }
+
+  function centreOf(h, a){
+    var t = clamp(a / h.yards, 0, 1), v = 0;
+    for (var i = 0; i < h.bends.length; i++){
+      v += h.bends[i].a * Math.sin(Math.PI * h.bends[i].k * t);
+    }
+    return v;
+  }
+  function halfWidthOf(h, a){
+    var t = clamp(a / h.yards, 0, 1);
+    return h.halfW * (1 - TUNE.gen.widthNarrow * t);
+  }
+
+  function makeCourse(){
+    var C = TUNE.course, rand = rng(C.seed), holes = [], yards = 0;
+    for (var i = 0; i < C.holes; i++){
+      var par = C.parOrder[i % C.parOrder.length];
+      var diff = C.difficulty[i % C.difficulty.length];
+      var h = makeHole(i + 1, par, diff, rand);
+      holes.push(h); yards += h.yards;
+    }
+    var par = holes.reduce(function(s, h){ return s + h.par; }, 0);
+    return { holes:holes, par:par, yards:yards,
+             feet: (yards * 3) / C.ratio, ratio: C.ratio };
+  }
+
+  var COURSE = makeCourse();
+  var HOLE = COURSE.holes[0];
+  function centre(a){ return centreOf(HOLE, a); }
+  function halfWidth(a){ return halfWidthOf(HOLE, a); }
+  stride = TUNE.walk.stride;
+  try { var sv = localStorage.getItem(STRIDE_KEY); if (sv) stride = parseFloat(sv) || TUNE.walk.stride; } catch(e){}
+
   var state = {
     mode:'tee', a:0, l:0,            // along / lateral, in yards
-    strokes:0, needFt:0, walkedFt:0, steps:0,
-    totalSteps:0, totalFt:0,
-    lastCarry:0, lastPutt:false, lie:'tee', sensor:'idle'
+    hole:0, card:[],                 // which hole we are on, and the round so far
+    strokes:0, needFt:0, walkedFt:0, steps:0, liePen:1,
+    holeFt:0, holeSteps:0,           // this hole only
+    totalSteps:0, totalFt:0,         // the whole round
+    lastCarry:0, lastRoll:0, lastPutt:false, lie:'tee', sensor:'idle'
   };
 
   var stage = document.getElementById('stage');
   var elPin = document.getElementById('toPin');
+  var elHole = document.getElementById('holeNum');
+  var elPar = document.getElementById('holePar');
   var elStrokes = document.getElementById('strokes');
   var elStTotal = document.getElementById('stTotal');
   var elFtTotal = document.getElementById('ftTotal');
@@ -213,19 +382,28 @@
       if (Math.hypot(a - b.a, l - b.l) <= b.r) return 'sand';
     }
     var off = Math.abs(l - centre(a));
-    if (a < 0 || a > HOLE.yards + 12) return 'deep';
+    if (a < 0 || a > HOLE.yards * (1 + TUNE.gen.deepPast)) return 'deep';
     if (off <= halfWidth(a)) return 'fair';
-    if (off <= halfWidth(a) + 7) return 'rough';
+    if (off <= halfWidth(a) + TUNE.gen.roughBand) return 'rough';
     return 'deep';
   }
 
-  // the club set IS the difficulty knob, and later it is the progression system
+  // Four families: Driver, Iron, Wedge, Putter. Their spans OVERLAP, so there
+  // is no distance the bag cannot reach. The bag is also an INPUT to the hole
+  // generator — grow the bag and the holes grow to match, on their own.
+  var CLUB_ORDER = ['wedge', 'iron', 'driver'];
+  function clubOf(key){
+    var b = TUNE.bag[key];
+    return { key:key, name:b.name, max:b.max, curve:b.curve,
+             aimSpan:b.aimSpan, flick:b.flick, putt:!!b.putt };
+  }
   function club(){
+    if (state.lie === 'green') return clubOf('putter');
     var d = pinDist();
-    if (state.lie === 'green') return { name:'Putt', max:11, putt:true };
-    if (d > 24) return { name:'Pitch', max:44, putt:false };
-    if (d > 7)  return { name:'Chip',  max:21, putt:false };
-    return { name:'Flop', max:12, putt:false };
+    for (var i = 0; i < CLUB_ORDER.length; i++){
+      if (d <= TUNE.bag[CLUB_ORDER[i]].max * TUNE.clubPick) return clubOf(CLUB_ORDER[i]);
+    }
+    return clubOf(CLUB_ORDER[CLUB_ORDER.length - 1]);
   }
   // aim is measured FROM the line to the hole, not from the axis of the hole
   function bearing(){ return Math.atan2(-state.l, HOLE.yards - state.a); }
@@ -234,9 +412,9 @@
   var plan = document.getElementById('plan');
   var pctx = plan.getContext('2d');
   var W = plan.width, H = plan.height;
-  var A0 = 44, A1 = W - 46, LSPAN = 17;
-  function PX(a){ return A0 + (A1 - A0) * (a / (HOLE.yards + 8)); }
-  function PY(l){ return H / 2 + (l / LSPAN) * (H / 2 - 12); }
+  var A0 = 44, A1 = W - 46;
+  function PX(a){ return A0 + (A1 - A0) * (a / HOLE.viewLen); }
+  function PY(l){ return H / 2 + (l / HOLE.span) * (H / 2 - 12); }
   function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
   var flight = null, aim = null;
@@ -276,11 +454,12 @@
     pctx.strokeStyle = css('--line-hi'); pctx.lineWidth = 1;
     pctx.fillStyle = css('--muted'); pctx.font = '11px "IBM Plex Mono", monospace';
     pctx.textAlign = 'center';
-    for (var y = 0; y <= HOLE.yards; y += 10){
+    var tick = HOLE.yards > 300 ? 50 : HOLE.yards > 150 ? 25 : 10;
+    for (var y = 0; y <= HOLE.yards; y += tick){
       pctx.globalAlpha = .5;
       pctx.beginPath(); pctx.moveTo(PX(y), H - 16); pctx.lineTo(PX(y), H - 9); pctx.stroke();
       pctx.globalAlpha = 1;
-      if (y % 20 === 0 && y > 0) pctx.fillText(String(y), PX(y), H - 2);
+      if (y % (tick * 2) === 0 && y > 0) pctx.fillText(String(y), PX(y), H - 2);
     }
 
     // tee
@@ -334,7 +513,7 @@
 
   // ---------------- swing pad ----------------
   var padDrag = null;
-  var MAXANG = 0.52;   // ~30 degrees either way
+  var MAXANG = TUNE.swing.maxAng;   // ~30 degrees either way
 
   function padHTML(c){
     return '<h2>' + c.name + ' &middot; ' + distLabel() + ' to the ' + (c.putt ? 'hole' : 'pin') + '</h2>' +
@@ -376,14 +555,14 @@
       var dy = padDrag.locked ? padDrag.backDy : Math.max(0, padDrag.cy - padDrag.sy);
       var dx = padDrag.locked ? padDrag.backDx : (padDrag.cx - padDrag.sx);
       var p = Math.max(0, Math.min(1, dy / (pad.clientHeight * 0.72)));
-      var span = c.putt ? MAXANG * 0.45 : MAXANG;   // a putter is a fine instrument
+      var span = MAXANG * c.aimSpan;   // a putter is a fine instrument
       var off = Math.max(-span, Math.min(span, (-dx / (pad.clientWidth * 0.42)) * span));
-      var base = c.putt ? p * p * c.max : p * c.max;
+      var base = Math.pow(p, c.curve) * c.max;   // curve 2 = fine touch up close
       return { p:p, off:off, ang: bearing() + off, dist: base * LIES[state.lie].mult };
     }
 
     // how fast the flick has to be, given how far you loaded it up
-    function idealFlick(p){ return (c.putt ? 620 : 900) * (0.45 + p); }   // px per second
+    function idealFlick(p){ return c.flick * (0.45 + p); }   // px per second
 
     function paint(v){
       ctx.clearRect(0, 0, pc.width, pc.height);
@@ -473,22 +652,23 @@
       while (faceErr > Math.PI) faceErr -= Math.PI * 2;
       while (faceErr < -Math.PI) faceErr += Math.PI * 2;
 
+      var S = TUNE.swing;
       var dist = v.dist, ang = v.ang, quality, miss;
-      if (ratio < 0.7){                       // left it out there
-        miss = Math.min(1, (0.7 - ratio) / 0.7);
-        dist *= 1 - 0.42 * miss;
-        ang += (c.putt ? 0.05 : 0.16) * miss;
+      if (ratio < S.pureLo){                  // left it out there
+        miss = Math.min(1, (S.pureLo - ratio) / S.pureLo);
+        dist *= 1 - S.lazyLoss * miss;
+        ang += (c.putt ? S.lazyPushPutt : S.lazyPush) * miss;
         quality = miss > 0.55 ? 'Chunked it' : 'Left it out there';
-      } else if (ratio > 1.5){                // came out of it early
-        miss = -Math.min(1, (ratio - 1.5) / 1.4);
-        dist *= 1 - 0.12 * Math.abs(miss);
-        ang -= (c.putt ? 0.05 : 0.19) * Math.abs(miss);
+      } else if (ratio > S.pureHi){           // came out of it early
+        miss = -Math.min(1, (ratio - S.pureHi) / 1.4);
+        dist *= 1 - S.quickLoss * Math.abs(miss);
+        ang -= (c.putt ? S.quickPullPutt : S.quickPull) * Math.abs(miss);
         quality = Math.abs(miss) > 0.55 ? 'Came out of it' : 'Bit quick';
       } else {
         miss = (ratio - 1.1) / 0.4 * -0.25;
         quality = 'Pured it';
       }
-      ang += faceErr * (c.putt ? 0.18 : 0.45);
+      ang += faceErr * (c.putt ? S.faceBendPutt : S.faceBend);
       if (Math.abs(faceErr) > 0.32 && quality === 'Pured it') quality = faceErr > 0 ? 'Pushed it' : 'Pulled it';
 
       state.lastQuality = quality;
@@ -513,7 +693,7 @@
         return;
       }
       state.lastQuality = 'Never let go of it';
-      hit(v.dist * 0.28, v.ang + 0.22, c.putt);
+      hit(v.dist * TUNE.swing.duffPower, v.ang + TUNE.swing.duffPush, c.putt);
     }
     pad.addEventListener('pointerup', release);
     pad.addEventListener('pointercancel', release);
@@ -560,15 +740,18 @@
       flight = null;
       state.a = a1; state.l = l1;
       state.lie = lieAt(a1, l1);
-      state.needFt = (total * 3) / RATIO;
+      // HIS IDEA, 2026-09-05: where the ball FINISHED decides the walk, not
+      // just how far it went. Rough and sand cost you steps as well as strokes.
+      state.liePen = TUNE.walk.liePenalty[state.lie] || 1;
+      state.needFt = (total * 3) / COURSE.ratio * state.liePen;
       state.walkedFt = 0; state.steps = 0;
 
       var holed = pinDist() <= 0.55;
       if (holed){
         // you still have to go and get it — that is when you get paid
         state.mode = 'collect';
-      } else if (state.needFt < 3){
-        state.totalFt += state.needFt; state.mode = 'tee';
+      } else if (state.needFt < TUNE.walk.skipUnder){
+        state.totalFt += state.needFt; state.holeFt += state.needFt; state.mode = 'tee';
       } else {
         state.mode = 'walk';
       }
@@ -578,9 +761,9 @@
 
   function addSteps(n){
     if (state.mode !== 'walk' && state.mode !== 'collect') return;
-    state.steps += n; state.totalSteps += n;
+    state.steps += n; state.totalSteps += n; state.holeSteps += n;
     var f = n * stride;
-    state.walkedFt += f; state.totalFt += f;
+    state.walkedFt += f; state.totalFt += f; state.holeFt += f;
     if (state.walkedFt >= state.needFt){
       state.mode = (state.mode === 'collect') ? 'paid' : 'tee';
       render();
@@ -661,11 +844,12 @@
     if (b2) b2.addEventListener('click', startMotion);
     document.getElementById('btnFake').addEventListener('click', function(){ addSteps(10); });
     document.getElementById('btnSkip').addEventListener('click', function(){
-      state.totalFt += Math.max(0, state.needFt - state.walkedFt);
+      var rem = Math.max(0, state.needFt - state.walkedFt);
+      state.totalFt += rem; state.holeFt += rem;
       state.mode = done; render();
     });
     document.getElementById('stride').addEventListener('change', function(e){
-      stride = parseFloat(e.target.value) || 2.5;
+      stride = parseFloat(e.target.value) || TUNE.walk.stride;
       try { localStorage.setItem(STRIDE_KEY, String(stride)); } catch(err){}
     });
   }
@@ -710,7 +894,10 @@
         '<div class="bar"><i id="walkBar"></i></div>' +
         '<p class="sub"><b>' + lieWord + '</b> ' + state.lastCarry.toFixed(0) + ' carry' +
           (state.lastRoll > 0.4 ? ' plus ' + state.lastRoll.toFixed(0) + ' of roll' : '') +
-          ' at 1:' + RATIO + ' is <b>' + state.needFt.toFixed(0) + ' ft</b> for you.</p>' +
+          ' at 1:' + COURSE.ratio +
+          (state.liePen > 1 ? ' plus <b>' + Math.round((state.liePen - 1) * 100) +
+                              '%</b> for the lie' : '') +
+          ' is <b>' + state.needFt.toFixed(0) + ' ft</b> for you.</p>' +
         walkControls();
       wireWalk('tee');
 
@@ -723,25 +910,92 @@
         walkControls();
       wireWalk('paid');
 
-    } else {
+    } else if (state.mode === 'paid'){
       var score = state.strokes - HOLE.par;
-      var word = score < -1 ? 'Eagle' : score === -1 ? 'Birdie' : score === 0 ? 'Par'
-               : score === 1 ? 'Bogey' : score === 2 ? 'Double' : 'On the board';
+      var last = state.hole >= COURSE.holes.length - 1;
       stage.innerHTML =
-        '<h2>Paid</h2>' +
-        '<div class="big">' + word + '<em>' + state.strokes + ' strokes</em></div>' +
-        '<p class="sub">You walked <b>' + Math.round(state.totalFt) + ' ft</b> over <b>' +
-          state.totalSteps + '</b> steps to pick that ball up.</p>' +
-        '<div class="rowbtn"><button class="primary" id="btnAgain">Play it again</button></div>';
-      document.getElementById('btnAgain').addEventListener('click', function(){
-        state.mode = 'tee'; state.a = 0; state.l = 0; state.lie = 'tee';
-        state.strokes = 0; state.needFt = 0; state.walkedFt = 0; state.lastCarry = 0;
+        '<h2>Paid &middot; hole ' + HOLE.n + ' of ' + COURSE.holes.length + '</h2>' +
+        '<div class="big">' + scoreWord(score) +
+          '<em>' + state.strokes + ' on a par ' + HOLE.par + '</em></div>' +
+        '<p class="sub">You walked <b>' + Math.round(state.holeFt) + ' ft</b> over <b>' +
+          state.holeSteps + '</b> steps to pick that one up.</p>' +
+        '<div class="rowbtn"><button class="primary" id="btnNext">' +
+          (last ? 'Sign the card' : 'Hole ' + (HOLE.n + 1) + ' &rarr;') + '</button></div>';
+      document.getElementById('btnNext').addEventListener('click', function(){
+        closeHole();
+        if (last) state.mode = 'card'; else loadHole(state.hole + 1);
         render();
       });
+
+    } else {
+      // the card
+      var rows = '', tot = 0, totPar = 0, totFt = 0;
+      for (var i = 0; i < state.card.length; i++){
+        var e = state.card[i];
+        tot += e.strokes; totPar += e.par; totFt += e.ft;
+        rows += '<tr><td>' + e.n + '</td><td>' + e.par + '</td><td class="s">' + e.strokes +
+                '</td><td>' + fmtRel(e.strokes - e.par) + '</td><td>' +
+                Math.round(e.ft) + '</td></tr>';
+      }
+      stage.innerHTML =
+        '<h2>Card signed</h2>' +
+        '<div class="big">' + fmtRel(tot - totPar, true) +
+          '<em>' + tot + ' strokes, par ' + totPar + '</em></div>' +
+        '<table class="card"><thead><tr><th>Hole</th><th>Par</th><th>You</th>' +
+          '<th>+/&minus;</th><th>Feet</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+        '<p class="sub">Real walking: <b>' + Math.round(totFt) + ' ft</b> &middot; <b>' +
+          (totFt / 5280).toFixed(2) + ' mi</b> over <b>' + state.totalSteps +
+          '</b> steps, at a 1:' + COURSE.ratio + ' ratio.</p>' +
+        '<p class="note">Tighten <b>TUNE.course.ratio</b> and the same nine walks further. ' +
+          'About <b>1.4</b> makes this course a mile.</p>' +
+        '<div class="rowbtn"><button class="primary" id="btnNew">A brand new nine</button>' +
+        '<button id="btnSame">Same nine again</button></div>';
+      document.getElementById('btnNew').addEventListener('click', function(){
+        TUNE.course.seed = (TUNE.course.seed * 1664525 + 1013904223) >>> 0;
+        COURSE = makeCourse(); startRound();
+      });
+      document.getElementById('btnSame').addEventListener('click', startRound);
     }
   }
 
-  render();
+  function scoreWord(s){
+    return s <= -3 ? 'Albatross' : s === -2 ? 'Eagle' : s === -1 ? 'Birdie'
+         : s === 0 ? 'Par' : s === 1 ? 'Bogey' : s === 2 ? 'Double'
+         : s === 3 ? 'Triple' : 'On the board';
+  }
+  function fmtRel(d, word){
+    return d === 0 ? (word ? 'Level' : 'E') : (d > 0 ? '+' + d : String(d));
+  }
+
+  // ---------------- the round ----------------
+  function closeHole(){
+    state.card.push({ n:HOLE.n, par:HOLE.par, strokes:state.strokes,
+                      ft:state.holeFt, steps:state.holeSteps });
+  }
+  function loadHole(i){
+    state.hole = i;
+    HOLE = COURSE.holes[i];
+    state.mode = 'tee'; state.a = 0; state.l = 0; state.lie = 'tee';
+    state.strokes = 0; state.needFt = 0; state.walkedFt = 0; state.steps = 0;
+    state.lastCarry = 0; state.lastRoll = 0; state.lastQuality = null; state.liePen = 1;
+    state.holeFt = 0; state.holeSteps = 0;
+    flight = null; aim = null;
+    elHole.textContent = HOLE.n + ' of ' + COURSE.holes.length;
+    elPar.textContent = HOLE.par + ' · ' + HOLE.yards + ' yd';
+  }
+  function startRound(){
+    state.card = []; state.totalFt = 0; state.totalSteps = 0;
+    loadHole(0);
+    var f = document.getElementById('foot');
+    if (f) f.innerHTML =
+      '<b>This nine:</b> par ' + COURSE.par + ' &middot; ' + COURSE.yards +
+      ' game yards &middot; <b>' + Math.round(COURSE.feet) + ' ft</b> (' +
+      (COURSE.feet / 5280).toFixed(2) + ' mi) of real walking at 1:' + COURSE.ratio +
+      ', before any penalty for a bad lie. Seed ' + TUNE.course.seed + '.';
+    render();
+  }
+
+  startRound();
 })();
 </script>
 </body>
