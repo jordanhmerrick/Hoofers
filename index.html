@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1210">
 <title>Hoofers Test Rig</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -7,122 +13,101 @@
     --bg:#0B1210; --panel:#111A17; --line:#1F2E28; --line-hi:#2C4237;
     --ink:#DFEAE4; --muted:#7E948A;
     --gold:#FFC93C; --hoof:#FF7A2F; --ok:#5FD68A; --grid:#16241E;
+    --fair:#2E4A38; --rough:#1A2B22; --sandc:#4A4230; --greenc:#31563C;
   }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --bg:#0B1210; --panel:#111A17; --line:#1F2E28; --line-hi:#2C4237;
-      --ink:#DFEAE4; --muted:#7E948A; --grid:#16241E;
-    }
-  }
-  :root[data-theme="dark"]{
-    --bg:#0B1210; --panel:#111A17; --line:#1F2E28; --line-hi:#2C4237;
-    --ink:#DFEAE4; --muted:#7E948A; --grid:#16241E;
-  }
-  :root[data-theme="light"]{
-    --bg:#EEF2F0; --panel:#FFFFFF; --line:#D6E0DA; --line-hi:#BACCC1;
-    --ink:#0B1210; --muted:#5C7268; --grid:#E2EAE5;
-  }
-  @media (prefers-color-scheme: light){
-    :root:not([data-theme="dark"]){
-      --bg:#EEF2F0; --panel:#FFFFFF; --line:#D6E0DA; --line-hi:#BACCC1;
-      --ink:#0B1210; --muted:#5C7268; --grid:#E2EAE5;
-    }
-  }
-
-  *{box-sizing:border-box;}
-  body{background:var(--bg);color:var(--ink);
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);}
+  body{color:var(--ink);
        font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-       -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;}
-  .app{max-width:460px;margin:0 auto;padding:18px 16px 30px;
-       display:flex;flex-direction:column;gap:14px;min-height:100%;}
+       -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+       padding-env:0;}
+  .app{max-width:470px;margin:0 auto;padding:16px 14px calc(28px + env(safe-area-inset-bottom));
+       display:flex;flex-direction:column;gap:12px;}
 
-  /* ---- head ---- */
   .head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;}
-  .brand{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:30px;line-height:1;
+  .brand{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:28px;line-height:1;
     background:linear-gradient(180deg,#FFE79A,#FFC93C 55%,#E09A14);
     -webkit-background-clip:text;background-clip:text;color:transparent;}
-  .build{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
-         text-align:right;line-height:1.5;}
+  .build{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+         text-align:right;line-height:1.55;}
   .build b{color:var(--hoof);font-weight:600;}
 
-  .holebar{display:flex;justify-content:space-between;gap:10px;
-    border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:var(--panel);}
-  .holebar div{display:flex;flex-direction:column;gap:3px;}
-  .holebar .k{font-size:8.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);}
-  .holebar .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .holebar{display:flex;justify-content:space-between;gap:8px;
+    border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--panel);}
+  .holebar div{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .holebar .k{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .holebar .v{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;
+              white-space:nowrap;}
   .holebar .v.gold{color:var(--gold);}
 
-  /* ---- schematic ---- */
-  .board{border:1px solid var(--line);border-radius:12px;background:var(--panel);
-         padding:12px;position:relative;}
-  canvas{width:100%;height:auto;display:block;border-radius:6px;background:var(--grid);}
-  .boardcap{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.13em;
-            text-transform:uppercase;color:var(--muted);padding:9px 2px 0;}
+  .board{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:10px;}
+  canvas#plan{width:100%;height:auto;display:block;border-radius:7px;background:var(--rough);}
+  .boardcap{display:flex;justify-content:space-between;font-size:8.5px;letter-spacing:.13em;
+            text-transform:uppercase;color:var(--muted);padding:8px 2px 0;}
+  .boardcap b{color:var(--ink);font-weight:600;}
 
-  /* ---- stage ---- */
   .stage{border:1px solid var(--line);border-radius:12px;background:var(--panel);
-         padding:16px;display:flex;flex-direction:column;gap:14px;}
-  .stage h2{margin:0;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--hoof);}
-  .big{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:44px;line-height:1;
-       font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
-  .big em{font-style:normal;font-size:16px;color:var(--muted);margin-left:4px;
+         padding:15px;display:flex;flex-direction:column;gap:12px;}
+  .stage h2{font-size:10px;letter-spacing:.17em;text-transform:uppercase;color:var(--hoof);}
+  .lie{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .lie b{color:var(--gold);font-weight:600;}
+  .big{font-family:"Baloo 2",sans-serif;font-weight:800;font-size:42px;line-height:1;
+       font-variant-numeric:tabular-nums;}
+  .big em{font-style:normal;font-size:15px;color:var(--muted);margin-left:5px;
           font-family:"IBM Plex Mono",monospace;}
-  .sub{font-size:12.5px;line-height:1.55;color:var(--muted);margin:0;}
+  .sub{font-size:12.5px;line-height:1.55;color:var(--muted);}
   .sub b{color:var(--ink);font-weight:600;}
 
-  /* swing pad */
-  .pad{position:relative;height:172px;border:1px dashed var(--line-hi);border-radius:10px;
+  .pad{position:relative;height:178px;border:1px dashed var(--line-hi);border-radius:10px;
        background:
          repeating-linear-gradient(0deg,transparent 0 15px,rgba(127,160,140,.07) 15px 16px),
          repeating-linear-gradient(90deg,transparent 0 15px,rgba(127,160,140,.07) 15px 16px);
-       touch-action:none;cursor:grab;overflow:hidden;user-select:none;}
-  .pad:active{cursor:grabbing;}
+       touch-action:none;overflow:hidden;user-select:none;}
   .pad-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    text-align:center;font-size:12px;color:var(--muted);padding:16px;line-height:1.6;pointer-events:none;}
-  .pad canvas{position:absolute;inset:0;width:100%;height:100%;background:transparent;}
+    text-align:center;font-size:11.5px;color:var(--muted);padding:14px;line-height:1.65;
+    pointer-events:none;}
+  .pad canvas{position:absolute;inset:0;width:100%;height:100%;}
 
-  .bar{height:12px;border-radius:99px;border:1px solid var(--line-hi);overflow:hidden;
+  .bar{height:11px;border-radius:99px;border:1px solid var(--line-hi);overflow:hidden;
        background:var(--grid);}
   .bar i{display:block;height:100%;width:0;border-radius:99px;
-         background:linear-gradient(90deg,var(--gold),var(--hoof));transition:width .08s linear;}
+         background:linear-gradient(90deg,var(--gold),var(--hoof));}
   .bar.ok i{background:linear-gradient(90deg,#8FE7B0,var(--ok));}
 
-  .rowbtn{display:flex;gap:9px;flex-wrap:wrap;}
-  button{
-    font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;cursor:pointer;
-    border-radius:9px;padding:12px 15px;color:var(--ink);background:var(--grid);
-    border:1px solid var(--line-hi);letter-spacing:.03em;flex:1;min-width:120px;
-  }
+  .rowbtn{display:flex;gap:8px;flex-wrap:wrap;}
+  button{font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;cursor:pointer;
+    border-radius:9px;padding:12px 14px;color:var(--ink);background:var(--grid);
+    border:1px solid var(--line-hi);flex:1;min-width:112px;}
   button:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
   button.primary{color:#3E2A05;border-color:#8E5D12;
     background:linear-gradient(180deg,#FFE79A,#FFC93C 50%,#E09A14);}
   button.ghost{flex:0 0 auto;min-width:0;font-size:11px;padding:9px 12px;color:var(--muted);}
-  button[disabled]{opacity:.4;cursor:not-allowed;}
 
   .note{font-size:11.5px;line-height:1.6;color:var(--muted);
-        border-left:2px solid var(--line-hi);padding-left:11px;margin:0;}
+        border-left:2px solid var(--line-hi);padding-left:11px;}
+  .note.warn{border-left-color:var(--hoof);}
   .note b{color:var(--ink);font-weight:600;}
-  .warn{border-left-color:var(--hoof);}
 
-  .strip{display:flex;gap:8px;flex-wrap:wrap;font-size:10px;letter-spacing:.1em;
+  .strip{display:flex;gap:7px;flex-wrap:wrap;font-size:9.5px;letter-spacing:.1em;
          text-transform:uppercase;color:var(--muted);}
   .strip span{border:1px solid var(--line);border-radius:99px;padding:5px 10px;}
   .strip b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;}
 
-  .cfg{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted);}
-  .cfg input{width:64px;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;
+  .cfg{display:flex;align-items:center;gap:9px;font-size:11px;color:var(--muted);}
+  .cfg input{width:62px;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;
     background:var(--grid);color:var(--ink);border:1px solid var(--line-hi);
-    border-radius:7px;padding:7px 9px;text-align:center;}
+    border-radius:7px;padding:7px 8px;text-align:center;}
 
-  .foot{font-size:11px;line-height:1.65;color:var(--muted);margin:2px 0 0;}
+  .foot{font-size:10.5px;line-height:1.65;color:var(--muted);}
   .foot b{color:var(--ink);font-weight:600;}
 </style>
-
+</head>
+<body>
 <div class="app">
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.1</b><br>Loop only · no art</div>
+    <div class="build">Test rig <b>0.3</b><br>Aim + lie + collect</div>
   </div>
 
   <div class="holebar">
@@ -133,8 +118,8 @@
   </div>
 
   <div class="board">
-    <canvas id="plan" width="800" height="240"></canvas>
-    <div class="boardcap"><span>Tee</span><span id="planMid">The ball</span><span>Pin</span></div>
+    <canvas id="plan" width="820" height="380"></canvas>
+    <div class="boardcap"><span>Tee</span><span id="lieCap">Lie: <b>Tee</b></span><span>Pin</span></div>
   </div>
 
   <div class="stage" id="stage"></div>
@@ -145,7 +130,7 @@
     <span>Sensor <b id="sensor">idle</b></span>
   </div>
 
-  <p class="foot"><b>What this is.</b> The loop, and nothing else: swing, fly, walk, swing again, hole out. Drawn as a test rig on purpose — art comes after we know the swing feels good. <b>Play it standing up.</b></p>
+  <p class="foot"><b>0.3 changes:</b> aim left and right, lies that punish you, and you now have to walk to the cup before you get paid.</p>
 </div>
 
 <script>
@@ -154,17 +139,37 @@
   var stride = 2.5;
   try { var sv = localStorage.getItem(STRIDE_KEY); if (sv) stride = parseFloat(sv) || 2.5; } catch(e){}
 
-  var RATIO = 7;                 // 7 game feet per 1 real foot
-  var HOLE = { yards: 70, par: 3 };
+  var RATIO = 7;
+  var HOLE = {
+    yards: 70, par: 3,
+    halfW: 7.0,              // fairway half width in yards
+    green: 6.0,              // green radius
+    bunkers: [ {a:52, l:6.5, r:4.2}, {a:38, l:-7.5, r:3.6} ]
+  };
+  // the fairway bends — straight max power runs out of it
+  function centre(a){
+    var t = Math.max(0, Math.min(1, a / HOLE.yards));
+    return Math.sin(t * Math.PI) * 6.5;
+  }
+  function halfWidth(a){
+    var t = Math.max(0, Math.min(1, a / HOLE.yards));
+    return HOLE.halfW * (1 - 0.35 * t);      // narrows toward the green
+  }
+
+  var LIES = {
+    tee:    { name:'Tee',    mult:1.00 },
+    fair:   { name:'Fairway',mult:1.00 },
+    rough:  { name:'Rough',  mult:0.70 },
+    deep:   { name:'Deep rough', mult:0.52 },
+    sand:   { name:'Bunker', mult:0.55 },
+    green:  { name:'Green',  mult:1.00 }
+  };
 
   var state = {
-    mode: 'tee',
-    toPin: HOLE.yards,
-    strokes: 0,
-    needFt: 0, walkedFt: 0,
-    steps: 0, totalSteps: 0, totalFt: 0,
-    lastCarry: 0, lastFrom: HOLE.yards,
-    sensor: 'idle'
+    mode:'tee', a:0, l:0,            // along / lateral, in yards
+    strokes:0, needFt:0, walkedFt:0, steps:0,
+    totalSteps:0, totalFt:0,
+    lastCarry:0, lastPutt:false, lie:'tee', sensor:'idle'
   };
 
   var stage = document.getElementById('stage');
@@ -173,134 +178,141 @@
   var elStTotal = document.getElementById('stTotal');
   var elFtTotal = document.getElementById('ftTotal');
   var elSensor = document.getElementById('sensor');
-  var planMid = document.getElementById('planMid');
+  var lieCap = document.getElementById('lieCap');
 
-  function club(){
-    if (state.toPin > 26) return { name: 'Pitch', max: 58, putt: false };
-    if (state.toPin > 7)  return { name: 'Chip',  max: 24, putt: false };
-    return { name: 'Putt', max: 11, putt: true };
-  }
+  function pinDist(){ return Math.hypot(HOLE.yards - state.a, -state.l); }
   function ft(y){ return y * 3; }
   function distLabel(){
-    return state.toPin <= 11
-      ? ft(state.toPin).toFixed(0) + ' ft'
-      : state.toPin.toFixed(0) + ' yd';
+    var d = pinDist();
+    return d <= 11 ? ft(d).toFixed(0) + ' ft' : d.toFixed(0) + ' yd';
   }
 
-  // ---------- schematic plan ----------
+  function lieAt(a, l){
+    if (Math.hypot(HOLE.yards - a, -l) <= HOLE.green) return 'green';
+    for (var i = 0; i < HOLE.bunkers.length; i++){
+      var b = HOLE.bunkers[i];
+      if (Math.hypot(a - b.a, l - b.l) <= b.r) return 'sand';
+    }
+    var off = Math.abs(l - centre(a));
+    if (a < 0 || a > HOLE.yards + 12) return 'deep';
+    if (off <= halfWidth(a)) return 'fair';
+    if (off <= halfWidth(a) + 7) return 'rough';
+    return 'deep';
+  }
+
+  function club(){
+    var d = pinDist();
+    if (state.lie === 'green') return { name:'Putt', max:11, putt:true };
+    if (d > 26) return { name:'Pitch', max:58, putt:false };
+    if (d > 7)  return { name:'Chip',  max:26, putt:false };
+    return { name:'Flop', max:14, putt:false };
+  }
+
+  // ---------------- board ----------------
   var plan = document.getElementById('plan');
   var pctx = plan.getContext('2d');
-  var flight = null;
-
+  var W = plan.width, H = plan.height;
+  var A0 = 44, A1 = W - 46, LSPAN = 17;
+  function PX(a){ return A0 + (A1 - A0) * (a / (HOLE.yards + 8)); }
+  function PY(l){ return H / 2 + (l / LSPAN) * (H / 2 - 12); }
   function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
-  var preview = null;   // putting: where the ball would stop
+  var flight = null, aim = null;
 
   function drawPlan(){
-    var W = plan.width, H = plan.height;
     pctx.clearRect(0, 0, W, H);
-    var ink = css('--ink'), muted = css('--muted'), gold = css('--gold'),
-        line = css('--line-hi'), hoof = css('--hoof'), ok = css('--ok');
+    pctx.fillStyle = css('--rough'); pctx.fillRect(0, 0, W, H);
 
-    var ballYd = HOLE.yards - state.toPin;
-    var putting = club().putt && state.mode === 'tee';
+    // fairway ribbon
+    pctx.fillStyle = css('--fair');
+    pctx.beginPath();
+    for (var a = 0; a <= HOLE.yards + 2; a += 2) pctx.lineTo(PX(a), PY(centre(a) - halfWidth(a)));
+    for (var b = HOLE.yards + 2; b >= 0; b -= 2) pctx.lineTo(PX(b), PY(centre(b) + halfWidth(b)));
+    pctx.closePath(); pctx.fill();
 
-    // the board zooms in for a putt — you see the green, not the hole
-    var vs = 0, ve = HOLE.yards, step = 10, lab = 20;
-    if (putting || (flight && flight.roll)){
-      var b0 = flight ? flight.fromYd : ballYd;
-      vs = Math.max(0, Math.min(b0, HOLE.yards) - 6);
-      ve = HOLE.yards + 2;
-      step = 1; lab = 2;
-    }
-    var span = ve - vs;
-    var x0 = 46, x1 = W - 46, base = H - 52;
-    function px(y){ return x0 + (x1 - x0) * ((y - vs) / span); }
+    // bunkers
+    pctx.fillStyle = css('--sandc');
+    HOLE.bunkers.forEach(function(bk){
+      pctx.beginPath();
+      pctx.ellipse(PX(bk.a), PY(bk.l), (PX(bk.r) - PX(0)), Math.abs(PY(bk.r) - PY(0)), 0, 0, 6.2832);
+      pctx.fill();
+    });
 
-    pctx.strokeStyle = line; pctx.lineWidth = 2;
-    pctx.beginPath(); pctx.moveTo(x0 - 20, base); pctx.lineTo(x1 + 20, base); pctx.stroke();
+    // green + cup
+    pctx.fillStyle = css('--greenc');
+    pctx.beginPath();
+    pctx.ellipse(PX(HOLE.yards), PY(0), (PX(HOLE.green) - PX(0)), Math.abs(PY(HOLE.green) - PY(0)), 0, 0, 6.2832);
+    pctx.fill();
+    pctx.strokeStyle = css('--ink'); pctx.lineWidth = 2;
+    pctx.beginPath(); pctx.arc(PX(HOLE.yards), PY(0), 6, 0, 6.2832); pctx.stroke();
+    pctx.fillStyle = css('--hoof');
+    pctx.beginPath(); pctx.moveTo(PX(HOLE.yards), PY(0) - 6);
+    pctx.lineTo(PX(HOLE.yards) + 16, PY(0) - 12); pctx.lineTo(PX(HOLE.yards), PY(0) - 18);
+    pctx.closePath(); pctx.fill();
 
-    pctx.strokeStyle = line; pctx.lineWidth = 1;
-    pctx.font = '11px "IBM Plex Mono", monospace'; pctx.fillStyle = muted; pctx.textAlign = 'center';
-    for (var y = Math.ceil(vs / step) * step; y <= ve; y += step){
-      var x = px(y);
-      pctx.beginPath(); pctx.moveTo(x, base); pctx.lineTo(x, base + (y % lab === 0 ? 8 : 5)); pctx.stroke();
-      if (y % lab === 0) pctx.fillText(putting ? (y * 3) + '′' : String(y), x, base + 22);
-    }
-
-    // green surface when we're zoomed in
-    if (putting || (flight && flight.roll)){
-      pctx.strokeStyle = ok; pctx.globalAlpha = .32; pctx.lineWidth = 10;
-      pctx.beginPath(); pctx.moveTo(px(Math.max(vs, HOLE.yards - 11)), base + 6);
-      pctx.lineTo(px(ve), base + 6); pctx.stroke();
+    // yard ticks
+    pctx.strokeStyle = css('--line-hi'); pctx.lineWidth = 1;
+    pctx.fillStyle = css('--muted'); pctx.font = '11px "IBM Plex Mono", monospace';
+    pctx.textAlign = 'center';
+    for (var y = 0; y <= HOLE.yards; y += 10){
+      pctx.globalAlpha = .5;
+      pctx.beginPath(); pctx.moveTo(PX(y), H - 16); pctx.lineTo(PX(y), H - 9); pctx.stroke();
       pctx.globalAlpha = 1;
+      if (y % 20 === 0 && y > 0) pctx.fillText(String(y), PX(y), H - 2);
     }
 
-    // pin + cup
-    var pinX = px(HOLE.yards);
-    pctx.strokeStyle = ink; pctx.lineWidth = 2;
-    pctx.beginPath(); pctx.moveTo(pinX, base); pctx.lineTo(pinX, base - 44); pctx.stroke();
-    pctx.fillStyle = hoof;
-    pctx.beginPath(); pctx.moveTo(pinX, base - 44); pctx.lineTo(pinX + 22, base - 37);
-    pctx.lineTo(pinX, base - 30); pctx.closePath(); pctx.fill();
-    pctx.strokeStyle = ink; pctx.lineWidth = 2;
-    pctx.beginPath(); pctx.ellipse(pinX, base + 1, putting ? 13 : 6, 4, 0, 0, 6.2832); pctx.stroke();
-
-    if (vs === 0){ pctx.fillStyle = muted; pctx.fillRect(x0 - 10, base - 4, 20, 4); }
+    // tee
+    pctx.fillStyle = css('--muted');
+    pctx.fillRect(PX(0) - 12, PY(0) - 4, 12, 8);
 
     if (flight){
-      var fx = px(flight.fromYd), tx = px(flight.toYd), t = flight.t, mx, my;
-      if (flight.roll){
-        pctx.strokeStyle = gold; pctx.lineWidth = 2; pctx.setLineDash([3, 6]);
-        pctx.beginPath(); pctx.moveTo(fx, base - 7); pctx.lineTo(tx, base - 7); pctx.stroke();
-        pctx.setLineDash([]);
-        mx = fx + (tx - fx) * t; my = base - 7;
-      } else {
-        var peak = Math.min(112, 26 + Math.abs(tx - fx) * 0.34);
-        pctx.strokeStyle = gold; pctx.lineWidth = 2; pctx.setLineDash([4, 7]);
-        pctx.beginPath(); pctx.moveTo(fx, base - 4);
-        pctx.quadraticCurveTo((fx + tx) / 2, base - peak * 2, tx, base - 4);
-        pctx.stroke(); pctx.setLineDash([]);
-        mx = (1 - t) * (1 - t) * fx + 2 * (1 - t) * t * ((fx + tx) / 2) + t * t * tx;
-        my = (1 - t) * (1 - t) * (base - 4) + 2 * (1 - t) * t * (base - peak * 2) + t * t * (base - 4);
-      }
-      pctx.fillStyle = ink;
-      pctx.beginPath(); pctx.arc(mx, my, 7, 0, 6.2832); pctx.fill();
+      pctx.strokeStyle = css('--gold'); pctx.lineWidth = 2; pctx.setLineDash([4, 7]);
+      pctx.beginPath(); pctx.moveTo(PX(flight.a0), PY(flight.l0));
+      pctx.lineTo(PX(flight.a1), PY(flight.l1)); pctx.stroke(); pctx.setLineDash([]);
+      var t = flight.t;
+      var cx = PX(flight.a0 + (flight.a1 - flight.a0) * t);
+      var cy = PY(flight.l0 + (flight.l1 - flight.l0) * t);
+      var hop = flight.roll ? 0 : Math.sin(t * Math.PI) * 16;
+      pctx.fillStyle = '#000'; pctx.globalAlpha = .35;
+      pctx.beginPath(); pctx.ellipse(cx, cy, 7, 3.5, 0, 0, 6.2832); pctx.fill();
+      pctx.globalAlpha = 1;
+      pctx.fillStyle = css('--ink');
+      pctx.beginPath(); pctx.arc(cx, cy - hop, 7, 0, 6.2832); pctx.fill();
     } else {
-      var bx = px(ballYd);
-      // putting: a solid aim line and a hollow marker showing where it stops
-      if (putting && preview !== null){
-        var sx = px(Math.min(HOLE.yards + 4, ballYd + preview));
-        pctx.strokeStyle = gold; pctx.lineWidth = 3;
-        pctx.beginPath(); pctx.moveTo(bx + 11, base - 7); pctx.lineTo(sx, base - 7); pctx.stroke();
-        pctx.strokeStyle = Math.abs(ballYd + preview - HOLE.yards) < 0.6 ? ok : gold;
+      if (aim){
+        var ea = state.a + Math.cos(aim.ang) * aim.dist;
+        var el = state.l + Math.sin(aim.ang) * aim.dist;
+        var endLie = lieAt(ea, el);
+        var good = endLie === 'fair' || endLie === 'green';
+        pctx.strokeStyle = good ? css('--ok') : css('--hoof');
+        pctx.lineWidth = 2.5; pctx.setLineDash([6, 6]);
+        pctx.beginPath(); pctx.moveTo(PX(state.a), PY(state.l)); pctx.lineTo(PX(ea), PY(el));
+        pctx.stroke(); pctx.setLineDash([]);
         pctx.lineWidth = 2.5;
-        pctx.beginPath(); pctx.arc(sx, base - 7, 8, 0, 6.2832); pctx.stroke();
-      } else if (!putting){
-        pctx.strokeStyle = gold; pctx.lineWidth = 1.5; pctx.setLineDash([3, 6]);
-        pctx.beginPath(); pctx.moveTo(bx + 12, base - 8); pctx.lineTo(pinX - 6, base - 8); pctx.stroke();
-        pctx.setLineDash([]);
+        pctx.beginPath(); pctx.arc(PX(ea), PY(el), 9, 0, 6.2832); pctx.stroke();
       }
-      pctx.fillStyle = ink;
-      pctx.beginPath(); pctx.arc(bx, base - (putting ? 7 : 8), 7, 0, 6.2832); pctx.fill();
+      pctx.fillStyle = css('--ink');
+      pctx.beginPath(); pctx.arc(PX(state.a), PY(state.l), 7, 0, 6.2832); pctx.fill();
     }
     pctx.textAlign = 'left';
   }
 
-  // ---------- swing pad ----------
+  // ---------------- swing pad ----------------
   var padDrag = null;
+  var MAXANG = 0.52;   // ~30 degrees either way
 
   function padHTML(c){
-    return '<h2>' + c.name + ' · ' + distLabel() + ' to the ' + (c.putt ? 'hole' : 'pin') + '</h2>' +
-      '<div class="pad' + (c.putt ? ' putt' : '') + '" id="pad"><canvas id="padc"></canvas>' +
+    return '<h2>' + c.name + ' &middot; ' + distLabel() + ' to the ' + (c.putt ? 'hole' : 'pin') + '</h2>' +
+      '<div class="lie">Lie: <b>' + LIES[state.lie].name + '</b>' +
+        (LIES[state.lie].mult < 1 ? ' &middot; ' + Math.round(LIES[state.lie].mult * 100) + '% power' : '') +
+      '</div>' +
+      '<div class="pad" id="pad"><canvas id="padc"></canvas>' +
       '<div class="pad-hint" id="padHint">' +
-        (c.putt ? 'Short, smooth pull.<br>Watch the ring on the board — that\'s where it stops.'
-                : 'Press, pull back, let go.<br>Longer pull = bigger hit.') +
+        (c.putt ? 'Pull back to set the pace.<br>Pull off to one side to aim.'
+                : 'Pull back for power.<br>Pull off to the side and it goes the other way.') +
       '</div></div>' +
       '<div class="bar' + (c.putt ? ' ok' : '') + '"><i id="powerBar"></i></div>' +
-      '<p class="sub" id="powerRead">' +
-        (c.putt ? 'Stroke <b>0%</b> · rolls <b>0 ft</b>' : 'Power <b>0%</b> · carries <b>0 yd</b>') +
-      '</p>';
+      '<p class="sub" id="powerRead">Pull back to start.</p>';
   }
 
   function wirePad(c){
@@ -310,50 +322,62 @@
     var bar = document.getElementById('powerBar');
     var read = document.getElementById('powerRead');
     var ctx = pc.getContext('2d');
-
-    function size(){ pc.width = pad.clientWidth * 2; pc.height = pad.clientHeight * 2; ctx.scale(2, 2); }
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    function size(){
+      pc.width = pad.clientWidth * dpr; pc.height = pad.clientHeight * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
     size();
 
-    function power(){
-      if (!padDrag) return 0;
+    function vals(){
+      if (!padDrag) return null;
       var dy = Math.max(0, padDrag.cy - padDrag.sy);
-      return Math.max(0, Math.min(1, dy / (pad.clientHeight * 0.78)));
+      var dx = padDrag.cx - padDrag.sx;
+      var p = Math.max(0, Math.min(1, dy / (pad.clientHeight * 0.72)));
+      var ang = Math.max(-MAXANG, Math.min(MAXANG, (-dx / (pad.clientWidth * 0.42)) * MAXANG));
+      var base = c.putt ? p * p * c.max : p * c.max;
+      return { p:p, ang:ang, dist: base * LIES[state.lie].mult };
     }
 
-    function paint(){
+    function paint(v){
       ctx.clearRect(0, 0, pc.width, pc.height);
       if (!padDrag) return;
-      var w = pad.clientWidth, h = pad.clientHeight;
       ctx.strokeStyle = css('--gold'); ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(padDrag.sx, padDrag.sy); ctx.lineTo(padDrag.cx, padDrag.cy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(padDrag.sx, padDrag.sy);
+      ctx.lineTo(padDrag.cx, padDrag.cy); ctx.stroke();
+      // where it will go, mirrored
+      ctx.strokeStyle = css('--ok'); ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(padDrag.sx, padDrag.sy);
+      ctx.lineTo(padDrag.sx - (padDrag.cx - padDrag.sx) * .8,
+                 padDrag.sy - (padDrag.cy - padDrag.sy) * .8);
+      ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = css('--ink');
       ctx.beginPath(); ctx.arc(padDrag.sx, padDrag.sy, 8, 0, 6.2832); ctx.fill();
       ctx.fillStyle = css('--hoof');
       ctx.beginPath(); ctx.arc(padDrag.cx, padDrag.cy, 6, 0, 6.2832); ctx.fill();
-      void w; void h;
+      void v;
     }
 
     function update(){
-      var p = power();
-      var d = c.putt ? p * p * c.max : p * c.max;   // squared curve: soft touch near the hole
-      bar.style.width = (p * 100).toFixed(0) + '%';
-      if (c.putt){
-        read.innerHTML = 'Stroke <b>' + Math.round(p * 100) + '%</b> · rolls <b>' +
-                         ft(d).toFixed(1) + ' ft</b>';
-        preview = d; drawPlan();
-      } else {
-        read.innerHTML = 'Power <b>' + Math.round(p * 100) + '%</b> · carries <b>' +
-                         d.toFixed(0) + ' yd</b>';
-      }
-      paint();
+      var v = vals(); if (!v) return;
+      bar.style.width = (v.p * 100).toFixed(0) + '%';
+      var side = Math.abs(v.ang) < 0.04 ? 'straight'
+               : (v.ang > 0 ? 'right ' : 'left ') + Math.round(Math.abs(v.ang) * 57) + '&deg;';
+      read.innerHTML = c.putt
+        ? 'Pace <b>' + Math.round(v.p * 100) + '%</b> &middot; rolls <b>' + ft(v.dist).toFixed(1) +
+          ' ft</b> &middot; ' + side
+        : 'Power <b>' + Math.round(v.p * 100) + '%</b> &middot; carries <b>' + v.dist.toFixed(0) +
+          ' yd</b> &middot; ' + side;
+      aim = { ang:v.ang, dist:v.dist };
+      drawPlan(); paint(v);
     }
 
     pad.addEventListener('pointerdown', function(e){
       var r = pad.getBoundingClientRect();
-      padDrag = { sx: e.clientX - r.left, sy: e.clientY - r.top,
-                  cx: e.clientX - r.left, cy: e.clientY - r.top };
+      padDrag = { sx:e.clientX - r.left, sy:e.clientY - r.top,
+                  cx:e.clientX - r.left, cy:e.clientY - r.top };
       hint.style.display = 'none';
-      pad.setPointerCapture(e.pointerId);
+      try { pad.setPointerCapture(e.pointerId); } catch(err){}
       update();
     });
     pad.addEventListener('pointermove', function(e){
@@ -364,62 +388,68 @@
     });
     function release(){
       if (!padDrag) return;
-      var p = power();
-      padDrag = null; paint();
-      if (p < 0.06){
+      var v = vals();
+      padDrag = null; paint(null);
+      if (!v || v.p < 0.06){
         hint.style.display = ''; bar.style.width = '0';
-        preview = null; drawPlan(); return;
+        aim = null; drawPlan();
+        read.textContent = 'Pull back to start.';
+        return;
       }
-      preview = null;
-      hit(c.putt ? p * p * c.max : p * c.max, c.putt);
+      aim = null;
+      hit(v.dist, v.ang, c.putt);
     }
     pad.addEventListener('pointerup', release);
     pad.addEventListener('pointercancel', release);
+    pad.addEventListener('lostpointercapture', release);
   }
 
-  // ---------- the loop ----------
-  function hit(carryYd, isPutt){
+  // ---------------- the loop ----------------
+  function hit(dist, ang, isPutt){
     state.strokes++;
-    var from = HOLE.yards - state.toPin;
-    var to = Math.min(HOLE.yards + 12, from + carryYd);
-    state.lastFrom = from;
-    state.lastCarry = carryYd;
-    state.lastPutt = !!isPutt;
-    state.toPin = Math.abs(HOLE.yards - to);
-    flight = { fromYd: from, toYd: Math.min(to, HOLE.yards + 4), t: 0, roll: !!isPutt };
+    var a0 = state.a, l0 = state.l;
+    var a1 = a0 + Math.cos(ang) * dist;
+    var l1 = l0 + Math.sin(ang) * dist;
+    state.lastCarry = dist; state.lastPutt = !!isPutt;
+    flight = { a0:a0, l0:l0, a1:a1, l1:l1, t:0, roll:!!isPutt };
     state.mode = 'flight';
     render();
 
-    var dur = isPutt ? 1000 + carryYd * 90 : 900;
+    var dur = isPutt ? 900 + dist * 90 : 780;
     var t0 = performance.now();
     (function fly(now){
       var u = Math.min(1, (now - t0) / dur);
-      // a putt decelerates as it runs out of legs
       flight.t = isPutt ? 1 - Math.pow(1 - u, 2.2) : u;
       drawPlan();
-      if (u < 1) requestAnimationFrame(fly);
-      else {
-        flight = null;
-        state.needFt = (carryYd * 3) / RATIO;
-        state.walkedFt = 0; state.steps = 0;
-        if (state.toPin <= 0.6){ state.mode = 'holed'; }
-        else if (state.needFt < 3){          // the two-foot putt walk is a gag, not a chore
-          state.totalFt += state.needFt; state.mode = 'tee';
-        } else { state.mode = 'walk'; }
-        render();
+      if (u < 1){ requestAnimationFrame(fly); return; }
+      flight = null;
+      state.a = a1; state.l = l1;
+      state.lie = lieAt(a1, l1);
+      state.needFt = (dist * 3) / RATIO;
+      state.walkedFt = 0; state.steps = 0;
+
+      var holed = pinDist() <= 0.55;
+      if (holed){
+        // you still have to go and get it — that is when you get paid
+        state.mode = 'collect';
+      } else if (state.needFt < 3){
+        state.totalFt += state.needFt; state.mode = 'tee';
+      } else {
+        state.mode = 'walk';
       }
+      render();
     })(t0);
   }
 
   function addSteps(n){
-    if (state.mode !== 'walk') return;
-    state.steps += n;
-    state.totalSteps += n;
-    var ft = n * stride;
-    state.walkedFt += ft;
-    state.totalFt += ft;
-    if (state.walkedFt >= state.needFt){ state.mode = 'tee'; render(); }
-    else updateWalk();
+    if (state.mode !== 'walk' && state.mode !== 'collect') return;
+    state.steps += n; state.totalSteps += n;
+    var f = n * stride;
+    state.walkedFt += f; state.totalFt += f;
+    if (state.walkedFt >= state.needFt){
+      state.mode = (state.mode === 'collect') ? 'paid' : 'tee';
+      render();
+    } else updateWalk();
   }
 
   function updateWalk(){
@@ -431,29 +461,25 @@
     elFtTotal.textContent = Math.round(state.totalFt) + ' ft';
   }
 
-  // ---------- motion ----------
+  // ---------------- motion ----------------
   var motionOn = false, smooth = 9.8, armed = true, lastStep = 0, events = 0;
-
   function setSensor(s){
-    state.sensor = s;
-    elSensor.textContent = s;
-    var live = document.getElementById('sensorMsg');
-    if (live) live.innerHTML = sensorMessage();
+    state.sensor = s; elSensor.textContent = s;
+    var m = document.getElementById('sensorMsg');
+    if (m) m.innerHTML = sensorMessage();
   }
-
   function sensorMessage(){
     switch (state.sensor){
-      case 'idle':    return 'Step counting is <b>off</b>. Tap the button and iOS will ask you.';
-      case 'asking':  return 'Asking iOS for motion access&hellip; look for the permission popup.';
-      case 'live':    return 'Motion is <b>live</b>. Walk and the counter moves.';
-      case 'silent':  return 'Permission granted but <b>no motion is arriving</b> — this page is inside a frame that blocks the sensor. Use <b>Log 10 steps</b>, or ask me to put this on its own web address where it will work.';
-      case 'framed':  return 'iOS refused <b>without asking you</b> — that is the giveaway that this page is running inside a frame on claude.ai, and frames never get the motion sensor. Nothing you did. It needs its own web address. Meanwhile <b>Log 10 steps</b> plays the loop.';
-      case 'denied':  return 'You <b>declined</b> motion access. Reload the page to be asked again, or use <b>Log 10 steps</b>.';
-      case 'blocked': return 'The browser <b>refused</b> the request — almost certainly because this page runs inside a frame. Use <b>Log 10 steps</b>, or ask me to put this on its own web address.';
-      default:        return 'This browser has <b>no motion sensor</b> available. Use <b>Log 10 steps</b>.';
+      case 'idle':   return 'Step counting is <b>off</b>. Tap and iOS will ask you.';
+      case 'asking': return 'Asking iOS&hellip; watch for the popup.';
+      case 'live':   return 'Motion is <b>live</b>. Hold the phone and walk.';
+      case 'silent': return 'Granted, but <b>no motion is arriving</b>. Use <b>Log 10 steps</b>.';
+      case 'framed': return 'iOS refused <b>without asking you</b> &mdash; this page is inside a frame. Open it at its own address instead.';
+      case 'denied': return 'You <b>declined</b>. Reload to be asked again, or use <b>Log 10 steps</b>.';
+      case 'blocked':return 'The browser <b>refused</b> the request. Use <b>Log 10 steps</b>.';
+      default:       return 'No motion sensor here. Use <b>Log 10 steps</b>.';
     }
   }
-
   function onMotion(e){
     var a = e.accelerationIncludingGravity;
     if (!a || a.x === null || a.x === undefined) return;
@@ -461,49 +487,61 @@
     var m = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
     smooth = smooth * 0.8 + m * 0.2;
     var now = performance.now();
-    if (armed && smooth > 11.6 && now - lastStep > 270){
-      armed = false; lastStep = now; addSteps(1);
-    }
+    if (armed && smooth > 11.6 && now - lastStep > 270){ armed = false; lastStep = now; addSteps(1); }
     if (smooth < 10.3) armed = true;
   }
-
   function startMotion(){
     setSensor('asking');
     function attach(){
       events = 0;
       window.addEventListener('devicemotion', onMotion);
-      motionOn = true;
-      setSensor('live');
-      setTimeout(function(){
-        if (events === 0){ motionOn = false; setSensor('silent'); render(); }
-      }, 2500);
+      motionOn = true; setSensor('live');
+      setTimeout(function(){ if (events === 0){ motionOn = false; setSensor('silent'); render(); } }, 2500);
       render();
     }
-    if (typeof DeviceMotionEvent === 'undefined'){
-      setSensor('none'); render(); return;
-    }
+    if (typeof DeviceMotionEvent === 'undefined'){ setSensor('none'); render(); return; }
     if (typeof DeviceMotionEvent.requestPermission === 'function'){
       var p, asked = performance.now();
       try { p = DeviceMotionEvent.requestPermission(); }
-      catch (err){ setSensor('blocked'); render(); return; }
+      catch(err){ setSensor('blocked'); render(); return; }
       Promise.resolve(p).then(function(r){
         if (r === 'granted') return attach();
-        // a refusal that lands before a human could tap is the frame, not the player
-        setSensor(performance.now() - asked < 600 ? 'framed' : 'denied');
-        render();
+        setSensor(performance.now() - asked < 600 ? 'framed' : 'denied'); render();
       }).catch(function(){ setSensor('blocked'); render(); });
-    } else {
-      attach();
-    }
+    } else attach();
   }
 
-  // ---------- render ----------
+  function walkControls(){
+    return '<div class="rowbtn">' +
+      (motionOn ? '' : '<button class="primary" id="btnMotion2">Turn on step counting</button>') +
+      '<button id="btnFake">Log 10 steps</button>' +
+      '<button class="ghost" id="btnSkip">Skip</button></div>' +
+      (motionOn ? '' : '<p class="note warn" id="sensorMsg">' + sensorMessage() + '</p>') +
+      '<div class="cfg"><label for="stride">Your stride, feet</label>' +
+      '<input id="stride" type="number" step="0.1" min="1" max="4" value="' + stride + '"></div>';
+  }
+  function wireWalk(done){
+    updateWalk();
+    var b2 = document.getElementById('btnMotion2');
+    if (b2) b2.addEventListener('click', startMotion);
+    document.getElementById('btnFake').addEventListener('click', function(){ addSteps(10); });
+    document.getElementById('btnSkip').addEventListener('click', function(){
+      state.totalFt += Math.max(0, state.needFt - state.walkedFt);
+      state.mode = done; render();
+    });
+    document.getElementById('stride').addEventListener('change', function(e){
+      stride = parseFloat(e.target.value) || 2.5;
+      try { localStorage.setItem(STRIDE_KEY, String(stride)); } catch(err){}
+    });
+  }
+
+  // ---------------- render ----------------
   function render(){
     elPin.textContent = distLabel();
     elStrokes.textContent = state.strokes;
     elStTotal.textContent = state.totalSteps;
     elFtTotal.textContent = Math.round(state.totalFt) + ' ft';
-    planMid.textContent = state.mode === 'walk' ? 'You are behind the ball' : 'The ball';
+    lieCap.innerHTML = 'Lie: <b>' + LIES[state.lie].name + '</b>';
     drawPlan();
 
     if (state.mode === 'tee'){
@@ -518,60 +556,52 @@
 
     } else if (state.mode === 'flight'){
       stage.innerHTML = state.lastPutt
-        ? '<h2>Rolling</h2>' +
-          '<div class="big">' + ft(state.lastCarry).toFixed(1) + '<em>ft</em></div>' +
-          '<p class="sub">Down the green it goes.</p>'
-        : '<h2>In the air</h2>' +
-          '<div class="big">' + state.lastCarry.toFixed(0) + '<em>yd</em></div>' +
-          '<p class="sub">Carried it. Your golfer is already walking.</p>';
+        ? '<h2>Rolling</h2><div class="big">' + ft(state.lastCarry).toFixed(1) + '<em>ft</em></div>'
+        : '<h2>In the air</h2><div class="big">' + state.lastCarry.toFixed(0) + '<em>yd</em></div>';
 
     } else if (state.mode === 'walk'){
+      var lieWord = state.lie === 'fair' ? 'Fairway. Nice.'
+                  : state.lie === 'green' ? 'On the green.'
+                  : state.lie === 'sand' ? 'Bunker. That will cost you.'
+                  : state.lie === 'rough' ? 'In the rough.' : 'Deep rough. Ouch.';
       stage.innerHTML =
-        '<h2>Your turn · walk it off</h2>' +
+        '<h2>Your turn &middot; walk it off</h2>' +
         '<div class="big"><span id="walkNum">' + Math.ceil(state.needFt) + '</span><em>ft to go</em></div>' +
         '<div class="bar"><i id="walkBar"></i></div>' +
-        '<p class="sub">He hit it <b>' + state.lastCarry.toFixed(0) + ' yd</b>. At 1:' + RATIO +
-          ' that is <b>' + state.needFt.toFixed(0) + ' ft</b> for you. ' +
-          (motionOn ? 'Start walking — hold the phone, screen on.' : '') + '</p>' +
-        '<div class="rowbtn">' +
-          (motionOn ? '' : '<button class="primary" id="btnMotion2">Turn on step counting</button>') +
-          '<button id="btnFake">Log 10 steps</button>' +
-          '<button class="ghost" id="btnSkip">Skip</button>' +
-        '</div>' +
-        (motionOn ? '' : '<p class="note warn" id="sensorMsg">' + sensorMessage() + '</p>') +
-        '<div class="cfg"><label for="stride">Your stride, feet</label>' +
-          '<input id="stride" type="number" step="0.1" min="1" max="4" value="' + stride + '"></div>';
-      updateWalk();
-      var b2 = document.getElementById('btnMotion2');
-      if (b2) b2.addEventListener('click', startMotion);
-      document.getElementById('btnFake').addEventListener('click', function(){ addSteps(10); });
-      document.getElementById('btnSkip').addEventListener('click', function(){
-        state.mode = 'tee'; render();
-      });
-      document.getElementById('stride').addEventListener('change', function(e){
-        stride = parseFloat(e.target.value) || 2.5;
-        try { localStorage.setItem(STRIDE_KEY, String(stride)); } catch(err){}
-      });
+        '<p class="sub"><b>' + lieWord + '</b> ' + state.lastCarry.toFixed(0) +
+          ' yd at 1:' + RATIO + ' is <b>' + state.needFt.toFixed(0) + ' ft</b> for you.</p>' +
+        walkControls();
+      wireWalk('tee');
+
+    } else if (state.mode === 'collect'){
+      stage.innerHTML =
+        '<h2>It dropped &middot; now go and get it</h2>' +
+        '<div class="big"><span id="walkNum">' + Math.ceil(state.needFt) + '</span><em>ft to the cup</em></div>' +
+        '<div class="bar ok"><i id="walkBar"></i></div>' +
+        '<p class="sub">The ball is in. <b>Nobody gets paid until you are standing over it.</b></p>' +
+        walkControls();
+      wireWalk('paid');
 
     } else {
       var score = state.strokes - HOLE.par;
-      var word = score < 0 ? 'Under par' : score === 0 ? 'Par' : score === 1 ? 'Bogey' : 'On the board';
+      var word = score < -1 ? 'Eagle' : score === -1 ? 'Birdie' : score === 0 ? 'Par'
+               : score === 1 ? 'Bogey' : score === 2 ? 'Double' : 'On the board';
       stage.innerHTML =
-        '<h2>Holed out</h2>' +
-        '<div class="big">' + state.strokes + '<em>strokes · ' + word + '</em></div>' +
+        '<h2>Paid</h2>' +
+        '<div class="big">' + word + '<em>' + state.strokes + ' strokes</em></div>' +
         '<p class="sub">You walked <b>' + Math.round(state.totalFt) + ' ft</b> over <b>' +
-          state.totalSteps + '</b> steps to do it. That is the whole game.</p>' +
-        '<div class="rowbtn"><button class="primary" id="btnAgain">Play it again</button></div>' +
-        '<p class="note"><b>The only question that matters:</b> did the swing feel good, and did you mind the walk?</p>';
+          state.totalSteps + '</b> steps to pick that ball up.</p>' +
+        '<div class="rowbtn"><button class="primary" id="btnAgain">Play it again</button></div>';
       document.getElementById('btnAgain').addEventListener('click', function(){
-        state.mode = 'tee'; state.toPin = HOLE.yards; state.strokes = 0;
-        state.needFt = 0; state.walkedFt = 0; state.lastCarry = 0;
+        state.mode = 'tee'; state.a = 0; state.l = 0; state.lie = 'tee';
+        state.strokes = 0; state.needFt = 0; state.walkedFt = 0; state.lastCarry = 0;
         render();
       });
     }
   }
 
-  window.addEventListener('resize', drawPlan);
   render();
 })();
 </script>
+</body>
+</html>
