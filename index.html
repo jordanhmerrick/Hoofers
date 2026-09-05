@@ -142,7 +142,7 @@
 
   <div class="head">
     <div class="brand">Hoofers</div>
-    <div class="build">Test rig <b>0.13</b><br><span id="roundName">Teaching round</span></div>
+    <div class="build">Test rig <b>0.14</b><br><span id="roundName">Teaching round</span></div>
   </div>
 
   <div class="holebar">
@@ -174,7 +174,7 @@
   </div>
 
   <p class="foot" id="foot"></p>
-  <p class="foot"><b>0.13 changes:</b> the putter sizes itself to the putt, so a six inch tap-in is a six inch stroke - the softest putt used to be 1.4 ft, which is why close putts kept running past. The cup is 8 inches for putts and 11 for a chip-in, and a mishit costs a putter far less than a driver. The strike and tempo readout moved out from under your hand into its own panel that a redraw cannot wipe. And the backswing is graded now: the time you take going back is measured against the time coming through, and a jerky pull-back costs you.</p>
+  <p class="foot"><b>0.14 changes:</b> the ball goes IN the hole now. A holed ball finishes dead centre on the cup instead of stopping somewhere near it, drops into it, and the cup lights up with rings riding out from it. <b>0.13 changes:</b> the putter sizes itself to the putt, so a six inch tap-in is a six inch stroke - the softest putt used to be 1.4 ft, which is why close putts kept running past. The cup is 8 inches for putts and 11 for a chip-in, and a mishit costs a putter far less than a driver. The strike and tempo readout moved out from under your hand into its own panel that a redraw cannot wipe. And the backswing is graded now: the time you take going back is measured against the time coming through, and a jerky pull-back costs you.</p>
 </div>
 
 <script>
@@ -311,6 +311,24 @@
       // and a chip-in are not the same shot and never wanted the same number.
       holeRadiusPutt: 0.22,   //  8 inches - a generous cup, but a cup
       holeRadiusShot: 0.30    // 11 inches - a chip-in should be rare, not impossible
+    },
+
+    // ---- THE BALL GOING IN -------------------------------------------------
+    // He named this as one of the two best seconds in the whole game, and the
+    // ball was just stopping NEAR the cup. His note: "if the putt is in the
+    // hole, it needs to look like it. Give a perfect circle over circle match
+    // and maybe a glow or celebration."
+    drop: {
+      snap: true,      // a holed ball finishes EXACTLY on the cup centre
+      dropMs: 340,     // the ball falling in
+      sink: 0.80,      // how far it shrinks as it drops
+      glowMs: 1500,    // the celebration that follows, on the board
+      rings: 3,        // rings that ride out from the cup
+      ringStagger: 0.17,
+      ringTo: 7.5,     // outermost ring, x the cup radius
+      glowLayers: 5,   // soft halo, drawn as stacked circles (no gradients)
+      glowTo: 3.4,     // halo radius, x the cup radius
+      glowAlpha: 0.15
     },
 
     // ---- WALKING -----------------------------------------------------------
@@ -625,7 +643,45 @@
   function PY(l){ return H / 2 + ((l - VIEW.lc) / VIEW.ls) * LH; }
   function css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
-  var flight = null, aim = null;
+  var flight = null, aim = null, celebrate = null;
+
+  // Rings riding out from the cup plus a soft halo. Drawn as stacked circles
+  // rather than a radial gradient, because a gradient is one more thing to
+  // fail silently on a phone.
+  function drawDropGlow(u){
+    if (u <= 0 || u > 1) return;
+    var D = TUNE.drop;
+    var cx = PX(HOLE.yards), cy = PY(0);
+    var cup = Math.max(6, PX(TUNE.putt.cupYd) - PX(0));
+    var i;
+    for (i = D.glowLayers; i >= 1; i--){
+      pctx.globalAlpha = D.glowAlpha * (1 - u) * (i / D.glowLayers);
+      pctx.fillStyle = css('--gold');
+      pctx.beginPath();
+      pctx.arc(cx, cy, cup * D.glowTo * (i / D.glowLayers), 0, 6.2832);
+      pctx.fill();
+    }
+    for (i = 0; i < D.rings; i++){
+      var w = u - i * D.ringStagger;
+      if (w <= 0 || w > 1) continue;
+      pctx.globalAlpha = (1 - w) * 0.9;
+      pctx.strokeStyle = css('--gold');
+      pctx.lineWidth = 3 * (1 - w) + 0.7;
+      pctx.beginPath();
+      pctx.arc(cx, cy, cup * (1 + (D.ringTo - 1) * w), 0, 6.2832);
+      pctx.stroke();
+    }
+    pctx.globalAlpha = 1;
+  }
+
+  function runCelebration(){
+    if (!celebrate) return;
+    if (performance.now() - celebrate.t0 > TUNE.drop.glowMs){
+      celebrate = null; drawPlan(); return;
+    }
+    drawPlan();
+    requestAnimationFrame(runCelebration);
+  }
 
   function drawPlan(){
     setView();
@@ -703,6 +759,21 @@
         pctx.lineTo(PX(flight.a1), PY(flight.l1)); pctx.stroke();
       }
       var cx, cy, hop, t = flight.t;
+      if (flight.phase === 'drop'){
+        // dead centre on the cup, shrinking as it falls in
+        var dx = PX(HOLE.yards), dy = PY(0);
+        var cupR = Math.max(6, PX(TUNE.putt.cupYd) - PX(0));
+        pctx.fillStyle = css('--gold'); pctx.globalAlpha = 0.30 + 0.5 * t;
+        pctx.beginPath(); pctx.arc(dx, dy, cupR, 0, 6.2832); pctx.fill();
+        pctx.globalAlpha = 1;
+        pctx.fillStyle = css('--ink');
+        pctx.beginPath();
+        pctx.arc(dx, dy, 7 * (1 - TUNE.drop.sink * t), 0, 6.2832);
+        pctx.fill();
+        drawDropGlow(t * 0.45);
+        pctx.textAlign = 'left';
+        return;
+      }
       if (flight.phase === 'carry'){
         cx = PX(flight.a0 + (flight.aC - flight.a0) * t);
         cy = PY(flight.l0 + (flight.lC - flight.l0) * t);
@@ -731,8 +802,18 @@
         pctx.lineWidth = 2.5;
         pctx.beginPath(); pctx.arc(PX(ea), PY(el), 9, 0, 6.2832); pctx.stroke();
       }
+      if (celebrate){
+        // the ball is sitting IN the cup now - concentric, not beside it
+        var cupR2 = Math.max(6, PX(TUNE.putt.cupYd) - PX(0));
+        pctx.fillStyle = css('--gold'); pctx.globalAlpha = 0.8;
+        pctx.beginPath(); pctx.arc(PX(HOLE.yards), PY(0), cupR2, 0, 6.2832); pctx.fill();
+        pctx.globalAlpha = 1;
+        drawDropGlow((performance.now() - celebrate.t0) / TUNE.drop.glowMs);
+      }
       pctx.fillStyle = css('--ink');
-      pctx.beginPath(); pctx.arc(PX(state.a), PY(state.l), 7, 0, 6.2832); pctx.fill();
+      pctx.beginPath();
+      pctx.arc(PX(state.a), PY(state.l), celebrate ? 7 * (1 - TUNE.drop.sink) : 7, 0, 6.2832);
+      pctx.fill();
     }
     pctx.textAlign = 'left';
   }
@@ -1010,6 +1091,11 @@
     var l1 = lC + Math.sin(ang) * rollYd;
     var total = dist + rollYd;
 
+    // decided up front, so the ball can be flown INTO the cup
+    var dropping = Math.hypot(HOLE.yards - a1, -l1) <=
+      (isPutt ? TUNE.putt.holeRadiusPutt : TUNE.putt.holeRadiusShot);
+    if (dropping && TUNE.drop.snap){ a1 = HOLE.yards; l1 = 0; }
+
     state.lastCarry = dist; state.lastRoll = rollYd; state.lastPutt = !!isPutt;
     state.landLie = landLie;
     flight = { a0:a0, l0:l0, aC:aC, lC:lC, a1:a1, l1:l1, t:0, phase:'carry', putt:!!isPutt };
@@ -1018,6 +1104,7 @@
 
     var carryDur = isPutt ? 900 + dist * 90 : 760;
     var rollDur = isPutt ? 0 : 220 + rollYd * 90;
+    var dropDur = dropping ? TUNE.drop.dropMs : 0;
     var t0 = performance.now();
     (function fly(now){
       var el = now - t0;
@@ -1033,7 +1120,13 @@
         flight.t = 1 - Math.pow(1 - v, 2.1);
         drawPlan(); requestAnimationFrame(fly); return;
       }
+      if (dropDur > 0 && el < carryDur + rollDur + dropDur){
+        flight.phase = 'drop';
+        flight.t = (el - carryDur - rollDur) / dropDur;
+        drawPlan(); requestAnimationFrame(fly); return;
+      }
       flight = null;
+      if (dropping && TUNE.drop.snap){ a1 = HOLE.yards; l1 = 0; }  // circle over circle
       state.a = a1; state.l = l1;
       state.lie = lieAt(a1, l1);
       // HIS IDEA, 2026-09-05: where the ball FINISHED decides the walk, not
@@ -1042,8 +1135,8 @@
       state.needFt = (total * 3) / COURSE.ratio * state.liePen;
       state.walkedFt = 0; state.steps = 0;
 
-      var holed = pinDist() <= (isPutt ? TUNE.putt.holeRadiusPutt
-                                        : TUNE.putt.holeRadiusShot);
+      var holed = dropping;
+      if (holed){ celebrate = { t0: performance.now() }; runCelebration(); }
       if (holed){
         // you still have to go and get it — that is when you get paid. But a
         // tap-in from two feet asked him to walk three inches, which read as
@@ -1308,7 +1401,7 @@
     state.strokes = 0; state.needFt = 0; state.walkedFt = 0; state.steps = 0;
     state.lastCarry = 0; state.lastRoll = 0; state.lastQuality = null; state.liePen = 1;
     state.holeFt = 0; state.holeSteps = 0;
-    flight = null; aim = null;
+    flight = null; aim = null; celebrate = null;
     elHole.textContent = HOLE.n + ' of ' + COURSE.holes.length;
     elRound.textContent = COURSE.name;
     elPar.textContent = HOLE.par + ' · ' + HOLE.yards + ' yd';
